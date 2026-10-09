@@ -4215,6 +4215,7 @@ function processRegistryImport(rows, filename){
   if(!confirmed) return;
   if(!state.customerRegistry) state.customerRegistry=[];
   rows.forEach(r => state.customerRegistry.push(r));
+  lockAfterEntry(rows[rows.length-1]);
   saveState();
   renderCustomerMaintenancePage();
   showToast('✅ '+rows.length+' customers import ho gaye!'+(noAmt?' ('+noAmt+' amounts missing — edit karein)':''));
@@ -4292,6 +4293,7 @@ function editRegistryCustomer(idx){
     showToast('🔒 Yeh customer is month paid hai — edit nahi kar sakte');
     return;
   }
+  guardEntryEdit(c,function(){
   document.getElementById('regEditIdx').value=idx;
   document.getElementById('registryModalTitle').textContent='Edit Customer | گاہک میں ترمیم کریں';
   document.getElementById('regCustName').value=c.customerName||'';
@@ -4302,6 +4304,7 @@ function editRegistryCustomer(idx){
   document.getElementById('regAddress').value=c.address||'';
   document.getElementById('regMonthlyCharges').value=c.monthlyCharges||'';
   document.getElementById('registryModalOverlay').classList.add('open');
+  });
 }
 function deleteRegistryCustomer(idx){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}
@@ -4312,6 +4315,7 @@ function deleteRegistryCustomer(idx){
     showToast('🔒 Yeh customer is month paid hai — delete nahi kar sakte');
     return;
   }
+  guardEntryEdit((state.customerRegistry||[])[idx]||null,function(){
   guardedDelete(function(){
     if(!state.customerRegistry) state.customerRegistry=[];
     state.customerRegistry.splice(idx,1);
@@ -4343,6 +4347,7 @@ function deleteRegistryCustomer(idx){
     renderCustomerMaintenancePage();
     showToast('🗑️ Customer delete ho gaya — payments bhi adjust ho gaye');
   });
+  });
 }
 function closeRegistryModal(){document.getElementById('registryModalOverlay').classList.remove('open');}
 function saveRegistryCustomer(){
@@ -4369,11 +4374,14 @@ function saveRegistryCustomer(){
     }
   }
   const obj={customerName:name,mobileNo:mobile,city,area,shopName:shop,address,monthlyCharges:charges};
-  if(idx===-1){state.customerRegistry.push(obj);}else{state.customerRegistry[idx]=obj;}
-  closeRegistryModal();
-  saveState();
-  renderCustomerMaintenancePage();
-  showToast(idx===-1?'✅ Customer add ho gaya — Data save!':'✅ Customer update ho gaya — Data save!');
+  const doSave=function(){
+    if(idx===-1){state.customerRegistry.push(obj);lockAfterEntry(obj);}else{state.customerRegistry[idx]=obj;}
+    closeRegistryModal();
+    saveState();
+    renderCustomerMaintenancePage();
+    showToast(idx===-1?'✅ Customer add ho gaya — Data save!':'✅ Customer update ho gaya — Data save!');
+  };
+  if(idx===-1){ doSave(); } else { guardEntryEdit(state.customerRegistry[idx]||null, doSave); }
 }
 // ── Close / Reopen Maintenance ──
 function closeMaintenance(){
@@ -4434,6 +4442,7 @@ function toggleCustBlock(idx){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Block nahi kar sakte!');return;}
   const c=(state.customerRegistry||[])[idx];
   if(!c){showToast('❌ Customer nahi mila!');return;}
+  guardEntryEdit(c,function(){
   if(c.blocked){
     c.blocked=false;
     saveState();
@@ -4453,6 +4462,7 @@ function toggleCustBlock(idx){
       true
     );
   }
+  });
 }
 // ── Mark Paid / Unpaid ──
 function markCustPaid(idx){
@@ -4490,6 +4500,7 @@ function confirmCustPaid(idx){
   state.customerPayments[mk][idx]={amount:Number(c.monthlyCharges)||0,date:payDate,person};
   saveState();
   addMaintenanceToMonthly(c,person);
+  lockAfterEntry(state.customerPayments[mk][idx]);
   closeModal();
   renderCustomerMaintenancePage();
   showToast('✅ '+escHtml(c.customerName)+' — Rs '+Number(c.monthlyCharges||0).toLocaleString('en-PK')+' PAID! ('+person+') Date: '+payDate);
@@ -4499,12 +4510,14 @@ function markCustUnpaid(idx){
   if(!c){showToast('❌ Customer nahi mila!');return;}
   const mk=state.currentMonth;
   ensureCustPayMonth(mk);
+  guardEntryEdit((state.customerPayments[mk]||{})[idx]||null,function(){
   if(state.customerPayments[mk][idx]) delete state.customerPayments[mk][idx];
   if(state.closingPaid&&state.closingPaid[mk]) delete state.closingPaid[mk][idx];
   if(state.closingReceived&&state.closingReceived[mk]) delete state.closingReceived[mk][idx];
   saveState();
   renderCustomerMaintenancePage();
   showToast('↩️ '+escHtml(c.customerName)+' ko Unpaid kar diya');
+  });
 }
 // Also add to the SAQIB monthly maintenance collection for reporting
 function addMaintenanceToMonthly(c,person){
@@ -4958,6 +4971,7 @@ function applyBulkCustomers(key, rows, filename){
   const confirmed=confirm(`Import Preview — "${filename}"\n\n${rows.length} customers mile:\n\n${preview}${more}\n\nYeh ${rows.length} customers ${key.toUpperCase()} ki list mein ADD honge.\n(Purani entries delete NAHI hongi)\n\nImport karna chahte hain?`);
   if(!confirmed) return;
   rows.forEach(r=>existing.push(r));
+  lockAfterEntry(rows[rows.length-1]);
   markDirty();
   renderCustomersPage();
   showImportToast(`${rows.length} customers successfully import ho gaye ${key.toUpperCase()} mein!`);
@@ -4986,7 +5000,9 @@ function addCustomerRow(key){
   const lastCity=lastRow?lastRow.city||'Islamabad':'Islamabad';
   const lastDate=lastRow?lastRow.date||todayStr():todayStr();
   const lastPayMode=lastRow?lastRow.paymentMode||'Cash':'Cash';
-  rows.push({date:lastDate,city:lastCity,area:'',customerName:'',amount:'',paymentMode:lastPayMode,_new:true});
+  const row={date:lastDate,city:lastCity,area:'',customerName:'',amount:'',paymentMode:lastPayMode,_new:true};
+  rows.push(row);
+  lockAfterEntry(row);
   markDirty();
   renderCustomersPage();
 }
@@ -5073,7 +5089,9 @@ function addRegistryToMonth(key,regIdx){
   const rows=state.customers[mk][key].rows;
   const lastDate=rows.length?rows[rows.length-1]?.date||todayStr():todayStr();
   const lastPayMode=rows.length?rows[rows.length-1]?.paymentMode||'Cash':'Cash';
-  rows.push({date:lastDate,city:c.city||'Islamabad',area:c.area||'',customerName:c.customerName||'',amount:c.monthlyCharges||'',paymentMode:lastPayMode,_new:true});
+  const row={date:lastDate,city:c.city||'Islamabad',area:c.area||'',customerName:c.customerName||'',amount:c.monthlyCharges||'',paymentMode:lastPayMode,_new:true};
+  rows.push(row);
+  lockAfterEntry(row);
   markDirty();
   syncCustPaymentFromCollection();
   renderCustomersPage();
@@ -5088,6 +5106,7 @@ function showModalRaw(html){
 function updateCustField(key,idx,field,val){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}
   const mk=state.currentMonth;ensureMonthData(mk);
+  guardEntryEdit((state.customers[mk][key].rows||[])[idx],function(){
   state.customers[mk][key].rows[idx][field]=val;
   if(field==='amount' && val) delete state.customers[mk][key].rows[idx]._new;
   markDirty();
@@ -5105,20 +5124,25 @@ function updateCustField(key,idx,field,val){
   if(field==='amount' || field==='customerName'){
     syncCustPaymentFromCollection();
   }
+  });
 }
 function deleteCustomerRow(key,idx){
+  guardEntryEdit(((state.customers[state.currentMonth]||{})[key]||{}).rows?.[idx]||null,function(){
   guardedDelete(function(){
     const mk=state.currentMonth;ensureMonthData(mk);
     state.customers[mk][key].rows.splice(idx,1);
     renderCustomersPage();
     saveState();
   });
+  });
 }
 function updateOpeningBalance(key,val){
   const mk=state.currentMonth;ensureMonthData(mk);
+  guardEntryEdit(null,function(){
   state.customers[mk][key].openingBalance=Number(val)||0;
   markDirty();
   renderCustomersPage();
+  });
 }
 function filterCustomerRows(q){
   const ql=q.toLowerCase();
@@ -6186,38 +6210,47 @@ try{
 let _closingFilter='all';
 function setClosingFilter(f){_closingFilter=f;filterClosingSheet();}
 function updateClosingReceived(regIdx,val){
+  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingReceived) state.closingReceived={};
   if(!state.closingReceived[mk]) state.closingReceived[mk]={};
   state.closingReceived[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
+  });
 }
 function updateClosingCharge(regIdx,val){
+  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingCharges) state.closingCharges={};
   if(!state.closingCharges[mk]) state.closingCharges[mk]={};
   state.closingCharges[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
+  });
 }
 function updateClosingBal(regIdx,val){
+  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingBalOverride) state.closingBalOverride={};
   if(!state.closingBalOverride[mk]) state.closingBalOverride[mk]={};
   state.closingBalOverride[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
+  });
 }
 function updateClosingCumBal(regIdx,val){
+  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingCumBalOverride) state.closingCumBalOverride={};
   if(!state.closingCumBalOverride[mk]) state.closingCumBalOverride[mk]={};
   state.closingCumBalOverride[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
+  });
 }
 function toggleClosingPaid(regIdx,isPaid){
+  const run=function(){
   const mk=state.currentMonth;
   if(!state.closingPaid) state.closingPaid={};
   if(!state.closingPaid[mk]) state.closingPaid[mk]={};
@@ -6231,6 +6264,7 @@ function toggleClosingPaid(regIdx,isPaid){
     }else if(state.customerPayments[mk][regIdx]&&!state.customerPayments[mk][regIdx].person){
       state.customerPayments[mk][regIdx].person=(currentUser==='AHMED')?'AHMED':'SAQIB';
     }
+    lockAfterEntry(state.customerPayments[mk][regIdx]);
   }else{
     delete state.closingPaid[mk][regIdx];
     ensureCustPayMonth(mk);
@@ -6245,6 +6279,13 @@ function toggleClosingPaid(regIdx,isPaid){
   delete state.closingBalOverride[mk][regIdx];
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
+  };
+  if(isPaid){ run(); }
+  else {
+    const mk=state.currentMonth;
+    const pay=((state.customerPayments||{})[mk]||{})[regIdx]||null;
+    guardEntryEdit(pay,run);
+  }
 }
 function filterClosingSheet(){
   const q=(document.getElementById('closingSearch')?.value||'').toLowerCase().trim();
@@ -7772,11 +7813,13 @@ function updateMonthlyManualDiff(){
   card.style.borderColor=ok?'#10b981':(diff>0?'#ef4444':'#3b82f6');
 }
 function updateClosingManualMaint(v){
+  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingManualMaint) state.closingManualMaint={};
   state.closingManualMaint[mk]=v;
   markDirty();
   updateClosingDiff();
+  });
 }
 function updateClosingDiff(){
   const mk=state.currentMonth;
