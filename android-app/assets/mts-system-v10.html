@@ -457,23 +457,6 @@ img.emoji{height:1.1em;width:1.1em;margin:0 .05em 0 .1em;vertical-align:-0.15em;
 </div>
 <!-- END ADMIN PERMISSION MODAL -->
 
-<!-- ENTRY LOCK MODAL (PIN 9900) -->
-<div id="entryLockModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10000;display:none;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:32px 28px;width:min(340px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center">
-    <div style="font-size:40px;margin-bottom:12px">🔒</div>
-    <div style="font-size:18px;font-weight:800;color:#1a202c;margin-bottom:4px">Entries Locked!</div>
-    <div style="font-size:13px;color:#64748b;margin-bottom:6px">Edit/Delete karne ke liye Admin PIN daalein</div>
-    <div style="font-size:12px;color:#ef4444;font-weight:600;margin-bottom:16px">⚠️ نئی اینٹری کے بعد لاک ہو جاتا ہے</div>
-    <input type="password" id="entryLockPin" inputmode="numeric" placeholder="🔑 Admin PIN..." onkeydown="if(event.key==='Enter')checkEntryLockPin()" style="width:100%;padding:11px 14px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;text-align:center;letter-spacing:3px;margin-bottom:10px;outline:none;transition:.2s" onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e5e7eb'">
-    <div id="entryLockErr" style="color:#ef4444;font-size:12px;font-weight:600;margin-bottom:12px;min-height:18px"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="closeEntryLockModal()" style="flex:1;padding:11px;background:#e2e8f0;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">❌ Cancel</button>
-      <button onclick="checkEntryLockPin()" style="flex:1;padding:11px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🔓 Unlock</button>
-    </div>
-  </div>
-</div>
-<!-- END ENTRY LOCK MODAL -->
-
 <button class="hamburger" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
 <div class="sidebar" id="sidebar">
   <div class="sidebar-brand">
@@ -2058,85 +2041,6 @@ function guardedDelete(deleteFn){
   }
 }
 
-// ════════════════════════════════════════════════════════
-// ENTRY LOCK — nayi entry banate hi edit/delete lock (PIN 9900)
-// Jab tak 9900 na diya jaye, entries edit/delete nahi ho sakti.
-// Nayi entry khud editable rehti hai (uska _lid freshLid se match hota hai).
-// ════════════════════════════════════════════════════════
-const ENTRY_LOCK_PIN='9900';
-let freshLid=null;              // sirf last added entry ka _lid (session only)
-let pendingLockAction=null;
-function genEntryLid(){return 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function entryLocked(){return state.entryLock===true;}
-function lockAfterEntry(obj){
-  if(obj){
-    if(!obj._lid) obj._lid=genEntryLid();
-    freshLid=obj._lid;
-  }
-  const was=entryLocked();
-  state.entryLock=true;
-  markDirty();
-  if(!was) showToast('🔒 Entry lock ON — edit/delete ke liye PIN 9900 chahiye');
-  refreshLockBadge();
-}
-// Floating lock badge — hamesha pata chale lock on hai ya nahi (click = PIN modal)
-function refreshLockBadge(){
-  let b=document.getElementById('entryLockBadge');
-  if(!entryLocked()){ if(b) b.remove(); return; }
-  if(!b){
-    b=document.createElement('div');
-    b.id='entryLockBadge';
-    b.style.cssText='position:fixed;left:14px;bottom:14px;z-index:99998;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:8px 16px;border-radius:999px;font-size:12px;font-weight:700;box-shadow:0 6px 18px rgba(245,158,11,.45);cursor:pointer;user-select:none;letter-spacing:.3px';
-    b.title='Entries locked — PIN 9900 se unlock karein (click karein)';
-    b.onclick=function(){ guardEntryEdit(null,function(){ renderPage(currentPage); }); };
-    document.body.appendChild(b);
-  }
-  b.innerHTML='🔒 Locked <span style="opacity:.8;font-weight:500">· 9900</span>';
-}
-function isEntryEditable(obj){
-  if(!entryLocked()) return true;
-  return !!(obj && obj._lid && obj._lid===freshLid);
-}
-function guardEntryEdit(obj,action){
-  if(isEntryEditable(obj)){ action(); return; }
-  pendingLockAction=action;
-  const m=document.getElementById('entryLockModal');
-  document.getElementById('entryLockPin').value='';
-  document.getElementById('entryLockErr').textContent='';
-  m.style.display='flex';
-  setTimeout(()=>{const p=document.getElementById('entryLockPin'); if(p) p.focus();},100);
-}
-function closeEntryLockModal(){
-  document.getElementById('entryLockModal').style.display='none';
-  const had=!!pendingLockAction;
-  pendingLockAction=null;
-  if(had) renderPage(currentPage); // cancelled — inputs ko state se wapas sync karo
-  refreshLockBadge();
-}
-function checkEntryLockPin(){
-  const inp=document.getElementById('entryLockPin');
-  const err=document.getElementById('entryLockErr');
-  if((inp.value||'').trim()===ENTRY_LOCK_PIN){
-    document.getElementById('entryLockModal').style.display='none';
-    inp.value='';
-    state.entryLock=false;
-    freshLid=null;
-    markDirty();
-    showToast('🔓 Entries unlocked — ab edit/delete kar sakte hain');
-    const act=pendingLockAction;
-    pendingLockAction=null;
-    if(act) act();
-    else renderPage(currentPage);
-    refreshLockBadge();
-  } else {
-    err.textContent='❌ Galat PIN!';
-    inp.value='';
-    inp.style.borderColor='#ef4444';
-    setTimeout(()=>{inp.style.borderColor='#e5e7eb';},1000);
-  }
-}
-
-
 // ── Login screen: users pills se select hote hain (jaise pehle thay) ──
 function renderLoginScreen(){
   try{
@@ -2460,8 +2364,7 @@ function getDefaultState(){
     monthlyManualBal:{},
     currentMonth:mk,
     profilePics:{},
-    maintenanceClosed:{},
-    entryLock:false
+    maintenanceClosed:{}
   };
 }
 // ═══ DATA PROTECTION — Backup before delete, prevent empty overwrite ═══
@@ -2813,7 +2716,6 @@ function renderPage(pageId){
     mc.insertBefore(banner,mc.firstChild);
   }
   requestAnimationFrame(()=>animatePageIn(mc));
-  refreshLockBadge();
 }
 // ════════════════════════════════════════════════════════
 // FAST PAGE-LOAD ANIMATIONS — cards cascade in, numbers count up
@@ -4215,7 +4117,6 @@ function processRegistryImport(rows, filename){
   if(!confirmed) return;
   if(!state.customerRegistry) state.customerRegistry=[];
   rows.forEach(r => state.customerRegistry.push(r));
-  lockAfterEntry(rows[rows.length-1]);
   saveState();
   renderCustomerMaintenancePage();
   showToast('✅ '+rows.length+' customers import ho gaye!'+(noAmt?' ('+noAmt+' amounts missing — edit karein)':''));
@@ -4293,7 +4194,6 @@ function editRegistryCustomer(idx){
     showToast('🔒 Yeh customer is month paid hai — edit nahi kar sakte');
     return;
   }
-  guardEntryEdit(c,function(){
   document.getElementById('regEditIdx').value=idx;
   document.getElementById('registryModalTitle').textContent='Edit Customer | گاہک میں ترمیم کریں';
   document.getElementById('regCustName').value=c.customerName||'';
@@ -4304,7 +4204,6 @@ function editRegistryCustomer(idx){
   document.getElementById('regAddress').value=c.address||'';
   document.getElementById('regMonthlyCharges').value=c.monthlyCharges||'';
   document.getElementById('registryModalOverlay').classList.add('open');
-  });
 }
 function deleteRegistryCustomer(idx){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}
@@ -4315,7 +4214,6 @@ function deleteRegistryCustomer(idx){
     showToast('🔒 Yeh customer is month paid hai — delete nahi kar sakte');
     return;
   }
-  guardEntryEdit((state.customerRegistry||[])[idx]||null,function(){
   guardedDelete(function(){
     if(!state.customerRegistry) state.customerRegistry=[];
     state.customerRegistry.splice(idx,1);
@@ -4347,7 +4245,6 @@ function deleteRegistryCustomer(idx){
     renderCustomerMaintenancePage();
     showToast('🗑️ Customer delete ho gaya — payments bhi adjust ho gaye');
   });
-  });
 }
 function closeRegistryModal(){document.getElementById('registryModalOverlay').classList.remove('open');}
 function saveRegistryCustomer(){
@@ -4374,14 +4271,11 @@ function saveRegistryCustomer(){
     }
   }
   const obj={customerName:name,mobileNo:mobile,city,area,shopName:shop,address,monthlyCharges:charges};
-  const doSave=function(){
-    if(idx===-1){state.customerRegistry.push(obj);lockAfterEntry(obj);}else{state.customerRegistry[idx]=obj;}
-    closeRegistryModal();
-    saveState();
-    renderCustomerMaintenancePage();
-    showToast(idx===-1?'✅ Customer add ho gaya — Data save!':'✅ Customer update ho gaya — Data save!');
-  };
-  if(idx===-1){ doSave(); } else { guardEntryEdit(state.customerRegistry[idx]||null, doSave); }
+  if(idx===-1){state.customerRegistry.push(obj);}else{state.customerRegistry[idx]=obj;}
+  closeRegistryModal();
+  saveState();
+  renderCustomerMaintenancePage();
+  showToast(idx===-1?'✅ Customer add ho gaya — Data save!':'✅ Customer update ho gaya — Data save!');
 }
 // ── Close / Reopen Maintenance ──
 function closeMaintenance(){
@@ -4442,7 +4336,6 @@ function toggleCustBlock(idx){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Block nahi kar sakte!');return;}
   const c=(state.customerRegistry||[])[idx];
   if(!c){showToast('❌ Customer nahi mila!');return;}
-  guardEntryEdit(c,function(){
   if(c.blocked){
     c.blocked=false;
     saveState();
@@ -4462,7 +4355,6 @@ function toggleCustBlock(idx){
       true
     );
   }
-  });
 }
 // ── Mark Paid / Unpaid ──
 function markCustPaid(idx){
@@ -4500,7 +4392,6 @@ function confirmCustPaid(idx){
   state.customerPayments[mk][idx]={amount:Number(c.monthlyCharges)||0,date:payDate,person};
   saveState();
   addMaintenanceToMonthly(c,person);
-  lockAfterEntry(state.customerPayments[mk][idx]);
   closeModal();
   renderCustomerMaintenancePage();
   showToast('✅ '+escHtml(c.customerName)+' — Rs '+Number(c.monthlyCharges||0).toLocaleString('en-PK')+' PAID! ('+person+') Date: '+payDate);
@@ -4510,14 +4401,12 @@ function markCustUnpaid(idx){
   if(!c){showToast('❌ Customer nahi mila!');return;}
   const mk=state.currentMonth;
   ensureCustPayMonth(mk);
-  guardEntryEdit((state.customerPayments[mk]||{})[idx]||null,function(){
   if(state.customerPayments[mk][idx]) delete state.customerPayments[mk][idx];
   if(state.closingPaid&&state.closingPaid[mk]) delete state.closingPaid[mk][idx];
   if(state.closingReceived&&state.closingReceived[mk]) delete state.closingReceived[mk][idx];
   saveState();
   renderCustomerMaintenancePage();
   showToast('↩️ '+escHtml(c.customerName)+' ko Unpaid kar diya');
-  });
 }
 // Also add to the SAQIB monthly maintenance collection for reporting
 function addMaintenanceToMonthly(c,person){
@@ -4971,7 +4860,6 @@ function applyBulkCustomers(key, rows, filename){
   const confirmed=confirm(`Import Preview — "${filename}"\n\n${rows.length} customers mile:\n\n${preview}${more}\n\nYeh ${rows.length} customers ${key.toUpperCase()} ki list mein ADD honge.\n(Purani entries delete NAHI hongi)\n\nImport karna chahte hain?`);
   if(!confirmed) return;
   rows.forEach(r=>existing.push(r));
-  lockAfterEntry(rows[rows.length-1]);
   markDirty();
   renderCustomersPage();
   showImportToast(`${rows.length} customers successfully import ho gaye ${key.toUpperCase()} mein!`);
@@ -5000,9 +4888,7 @@ function addCustomerRow(key){
   const lastCity=lastRow?lastRow.city||'Islamabad':'Islamabad';
   const lastDate=lastRow?lastRow.date||todayStr():todayStr();
   const lastPayMode=lastRow?lastRow.paymentMode||'Cash':'Cash';
-  const row={date:lastDate,city:lastCity,area:'',customerName:'',amount:'',paymentMode:lastPayMode,_new:true};
-  rows.push(row);
-  lockAfterEntry(row);
+  rows.push({date:lastDate,city:lastCity,area:'',customerName:'',amount:'',paymentMode:lastPayMode,_new:true});
   markDirty();
   renderCustomersPage();
 }
@@ -5089,9 +4975,7 @@ function addRegistryToMonth(key,regIdx){
   const rows=state.customers[mk][key].rows;
   const lastDate=rows.length?rows[rows.length-1]?.date||todayStr():todayStr();
   const lastPayMode=rows.length?rows[rows.length-1]?.paymentMode||'Cash':'Cash';
-  const row={date:lastDate,city:c.city||'Islamabad',area:c.area||'',customerName:c.customerName||'',amount:c.monthlyCharges||'',paymentMode:lastPayMode,_new:true};
-  rows.push(row);
-  lockAfterEntry(row);
+  rows.push({date:lastDate,city:c.city||'Islamabad',area:c.area||'',customerName:c.customerName||'',amount:c.monthlyCharges||'',paymentMode:lastPayMode,_new:true});
   markDirty();
   syncCustPaymentFromCollection();
   renderCustomersPage();
@@ -5106,7 +4990,6 @@ function showModalRaw(html){
 function updateCustField(key,idx,field,val){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}
   const mk=state.currentMonth;ensureMonthData(mk);
-  guardEntryEdit((state.customers[mk][key].rows||[])[idx],function(){
   state.customers[mk][key].rows[idx][field]=val;
   if(field==='amount' && val) delete state.customers[mk][key].rows[idx]._new;
   markDirty();
@@ -5124,25 +5007,20 @@ function updateCustField(key,idx,field,val){
   if(field==='amount' || field==='customerName'){
     syncCustPaymentFromCollection();
   }
-  });
 }
 function deleteCustomerRow(key,idx){
-  guardEntryEdit(((state.customers[state.currentMonth]||{})[key]||{}).rows?.[idx]||null,function(){
   guardedDelete(function(){
     const mk=state.currentMonth;ensureMonthData(mk);
     state.customers[mk][key].rows.splice(idx,1);
     renderCustomersPage();
     saveState();
   });
-  });
 }
 function updateOpeningBalance(key,val){
   const mk=state.currentMonth;ensureMonthData(mk);
-  guardEntryEdit(null,function(){
   state.customers[mk][key].openingBalance=Number(val)||0;
   markDirty();
   renderCustomersPage();
-  });
 }
 function filterCustomerRows(q){
   const ql=q.toLowerCase();
@@ -5822,13 +5700,11 @@ function renderBossTab(method){
   `;
 }
 function switchBossTab(tab){bossTab=tab;renderBossPage();}
-function addBossRow(method){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const gb=(currentUser==='AHMED')?'AHMED':'SAQIB';const row={date:selectedMonthDate(),amount:'',method:method||'Cash',givenBy:gb,remarks:''};state.bossPayments.entries.push(row);lockAfterEntry(row);renderBossPage();}
+function addBossRow(method){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const gb=(currentUser==='AHMED')?'AHMED':'SAQIB';state.bossPayments.entries.push({date:selectedMonthDate(),amount:'',method:method||'Cash',givenBy:gb,remarks:''});markDirty();renderBossPage();}
 function updateBossField(idx,field,val){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}
-  guardEntryEdit((state.bossPayments.entries||[])[idx],function(){
-    state.bossPayments.entries[idx][field]=val;
-    markDirty();
-  });
+  state.bossPayments.entries[idx][field]=val;
+  markDirty();
 }
 // ── Boss payment photo (screenshot/record) ──
 function compressImageToDataUrl(file,maxW,quality,cb){
@@ -5860,7 +5736,6 @@ function handleBossPic(ai,input){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Photo nahi laga sakte!');return;}
   if(f.type&&f.type.indexOf('image/')!==0){showToast('❌ Sirf image file upload karein!');return;}
   if(f.size>10*1024*1024){showToast('❌ Image 10MB se choti honi chahiye!');return;}
-  guardEntryEdit(state.bossPayments.entries[ai],function(){
   compressImageToDataUrl(f,900,0.7,function(dataUrl){
     if(!state.bossPayments.entries[ai]){showToast('❌ Entry nahi mili!');return;}
     state.bossPayments.entries[ai].photo=dataUrl;
@@ -5868,7 +5743,6 @@ function handleBossPic(ai,input){
     saveState();
     renderBossPage();
     showToast('📷 Photo save ho gayi — record me rahy gi');
-  });
   });
 }
 function viewBossPhoto(ai){
@@ -5888,13 +5762,11 @@ function removeBossPhoto(ai){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Photo nahi hata sakte!');return;}
   const r=state.bossPayments.entries[ai];
   if(!r||!r.photo){showToast('📷 Photo hai hi nahi');return;}
-  guardEntryEdit(r,function(){
-    showModal('🗑️ Photo Hatayein','Is entry ki photo delete karni hai?','🗑️ Haan, Hatayein',()=>{
-      delete state.bossPayments.entries[ai].photo;
-      saveState();
-      renderBossPage();
-      showToast('🗑️ Photo hata di gayi');
-    });
+  showModal('🗑️ Photo Hatayein','Is entry ki photo delete karni hai?','🗑️ Haan, Hatayein',()=>{
+    delete state.bossPayments.entries[ai].photo;
+    saveState();
+    renderBossPage();
+    showToast('🗑️ Photo hata di gayi');
   });
 }
 function autoSendBossWhatsApp(idx){
@@ -5922,9 +5794,9 @@ function sendWaMsg(phone,msg){
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
   }
 }
-function deleteBossRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.bossPayments.entries||[])[idx],function(){guardedDelete(function(){backupState('pre-deleteBossRow');state.bossPayments.entries.splice(idx,1);saveState();renderBossPage();showToast('🗑️ Boss payment entry delete ho gayi');});});}
+function deleteBossRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardedDelete(function(){backupState('pre-deleteBossRow');state.bossPayments.entries.splice(idx,1);saveState();renderBossPage();showToast('🗑️ Boss payment entry delete ho gayi');});}
 function renderBossPage(){renderPage('boss');}
-function clearBoss(){guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{state.bossPayments.entries=[];saveState();renderBossPage();showToast('✅ Data saaf ho gaya');});});});}
+function clearBoss(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{state.bossPayments.entries=[];saveState();renderBossPage();showToast('✅ Data saaf ho gaya');});});}
 
 //======= WHATSAPP BOSS PAYMENT =======
 function sendBossWhatsApp(idx){
@@ -6210,47 +6082,38 @@ try{
 let _closingFilter='all';
 function setClosingFilter(f){_closingFilter=f;filterClosingSheet();}
 function updateClosingReceived(regIdx,val){
-  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingReceived) state.closingReceived={};
   if(!state.closingReceived[mk]) state.closingReceived[mk]={};
   state.closingReceived[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
-  });
 }
 function updateClosingCharge(regIdx,val){
-  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingCharges) state.closingCharges={};
   if(!state.closingCharges[mk]) state.closingCharges[mk]={};
   state.closingCharges[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
-  });
 }
 function updateClosingBal(regIdx,val){
-  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingBalOverride) state.closingBalOverride={};
   if(!state.closingBalOverride[mk]) state.closingBalOverride[mk]={};
   state.closingBalOverride[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
-  });
 }
 function updateClosingCumBal(regIdx,val){
-  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingCumBalOverride) state.closingCumBalOverride={};
   if(!state.closingCumBalOverride[mk]) state.closingCumBalOverride[mk]={};
   state.closingCumBalOverride[mk][regIdx]=val;
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
-  });
 }
 function toggleClosingPaid(regIdx,isPaid){
-  const run=function(){
   const mk=state.currentMonth;
   if(!state.closingPaid) state.closingPaid={};
   if(!state.closingPaid[mk]) state.closingPaid[mk]={};
@@ -6264,7 +6127,6 @@ function toggleClosingPaid(regIdx,isPaid){
     }else if(state.customerPayments[mk][regIdx]&&!state.customerPayments[mk][regIdx].person){
       state.customerPayments[mk][regIdx].person=(currentUser==='AHMED')?'AHMED':'SAQIB';
     }
-    lockAfterEntry(state.customerPayments[mk][regIdx]);
   }else{
     delete state.closingPaid[mk][regIdx];
     ensureCustPayMonth(mk);
@@ -6279,13 +6141,6 @@ function toggleClosingPaid(regIdx,isPaid){
   delete state.closingBalOverride[mk][regIdx];
   markDirty();
   renderClosingSheet(document.getElementById('mainContent'));
-  };
-  if(isPaid){ run(); }
-  else {
-    const mk=state.currentMonth;
-    const pay=((state.customerPayments||{})[mk]||{})[regIdx]||null;
-    guardEntryEdit(pay,run);
-  }
 }
 function filterClosingSheet(){
   const q=(document.getElementById('closingSearch')?.value||'').toLowerCase().trim();
@@ -6567,13 +6422,12 @@ function renderSoftware(mc){
 }
 function addSoftwareRow(){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}
-  const row={date:selectedMonthDate(),customerName:'',area:'',softwareType:'POS System',totalAmount:'',advancePaid:'',advanceMethod:'Cash',advanceBy:'SAQIB',remainingReceived:'',remainingMethod:'Cash',remainingBy:'SAQIB',collectionDate:'',notes:''};
-  state.softwareLedger.entries.push(row);
-  lockAfterEntry(row);
+  state.softwareLedger.entries.push({date:selectedMonthDate(),customerName:'',area:'',softwareType:'POS System',totalAmount:'',advancePaid:'',advanceMethod:'Cash',advanceBy:'SAQIB',remainingReceived:'',remainingMethod:'Cash',remainingBy:'SAQIB',collectionDate:'',notes:''});
+  markDirty();
   renderSoftwarePage();
 }
-function updateSW(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}guardEntryEdit((state.softwareLedger.entries||[])[idx],function(){state.softwareLedger.entries[idx][field]=val;markDirty();});}
-function deleteSWRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.softwareLedger.entries||[])[idx],function(){guardedDelete(function(){state.softwareLedger.entries.splice(idx,1);saveState();renderSoftwarePage();});});}
+function updateSW(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.softwareLedger.entries[idx][field]=val;markDirty();}
+function deleteSWRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardedDelete(function(){state.softwareLedger.entries.splice(idx,1);saveState();renderSoftwarePage();});}
 function renderSoftwarePage(){renderPage('software');}
 function highlightSoftwareRows(q){
   document.querySelectorAll('#mainContent table tbody tr').forEach(tr=>{
@@ -6585,7 +6439,7 @@ function highlightSoftwareRows(q){
 }
 function clearSoftware(){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}
-  guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearSoftware');state.softwareLedger.entries=[];saveState();renderSoftwarePage();showToast('✅ Data saaf ho gaya');});});});
+  guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearSoftware');state.softwareLedger.entries=[];saveState();renderSoftwarePage();showToast('✅ Data saaf ho gaya');});});
 }
 
 //======= HARDWARE LEDGER =======
@@ -6655,23 +6509,21 @@ function renderHardware(mc){
     ${!entries.length?'<div class="empty-state"><i class="ti ti-tool"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
-function addHardwareRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const row={date:selectedMonthDate(),customerName:'',area:'',itemDescription:'',qty:'',totalValue:'',received:'',discount:'',person:'SAQIB',paymentMethod:'Cash',notes:''};state.hardwareLedger.entries.push(row);lockAfterEntry(row);renderHardwarePage();}
-function updateHW(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}guardEntryEdit((state.hardwareLedger.entries||[])[idx],function(){state.hardwareLedger.entries[idx][field]=val;markDirty();});}
+function addHardwareRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.hardwareLedger.entries.push({date:selectedMonthDate(),customerName:'',area:'',itemDescription:'',qty:'',totalValue:'',received:'',discount:'',person:'SAQIB',paymentMethod:'Cash',notes:''});markDirty();renderHardwarePage();}
+function updateHW(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.hardwareLedger.entries[idx][field]=val;markDirty();}
 function setHWExpDate(idx,mode){
   const d=new Date();
   if(mode==='1d') d.setDate(d.getDate()+1);
   else if(mode==='1w') d.setDate(d.getDate()+7);
   else if(mode==='2w') d.setDate(d.getDate()+14);
   const val=fmtDate(d);
-  guardEntryEdit((state.hardwareLedger.entries||[])[idx],function(){
-    state.hardwareLedger.entries[idx].expectedPayDate=val;
-    markDirty();
-    const inp=document.getElementById('hw-expdate-'+idx);
-    if(inp) inp.value=val;
-    showToast('📅 Expected date set: '+val);
-  });
+  state.hardwareLedger.entries[idx].expectedPayDate=val;
+  markDirty();
+  const inp=document.getElementById('hw-expdate-'+idx);
+  if(inp) inp.value=val;
+  showToast('📅 Expected date set: '+val);
 }
-function deleteHWRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.hardwareLedger.entries||[])[idx],function(){guardedDelete(function(){state.hardwareLedger.entries.splice(idx,1);saveState();renderHardwarePage();});});}
+function deleteHWRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardedDelete(function(){state.hardwareLedger.entries.splice(idx,1);saveState();renderHardwarePage();});}
 function renderHardwarePage(){renderPage('hardware');}
 function highlightHardwareRows(q){
   document.querySelectorAll('#mainContent table tbody tr').forEach(tr=>{
@@ -6681,7 +6533,7 @@ function highlightHardwareRows(q){
     if(name.includes(q.toLowerCase())) tr.classList.add('search-highlight');
   });
 }
-function clearHardware(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearHardware');state.hardwareLedger.entries=[];saveState();renderHardwarePage();showToast('✅ Data saaf ho gaya');});});});}
+function clearHardware(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearHardware');state.hardwareLedger.entries=[];saveState();renderHardwarePage();showToast('✅ Data saaf ho gaya');});});}
 
 //======= FOOD EXPENSE =======
 function renderFood(mc){
@@ -6705,7 +6557,7 @@ function renderFood(mc){
     ${!all.length?'<div class="empty-state"><i class="ti ti-meat-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
-function addFoodRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const row={date:selectedMonthDate(),person:'SAQIB',amount:'',notes:''};state.foodExpense.entries.push(row);lockAfterEntry(row);renderFoodPage();}
+function addFoodRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.foodExpense.entries.push({date:selectedMonthDate(),person:'SAQIB',amount:'',notes:''});markDirty();renderFoodPage();}
 function updateLiveTotal(type){
   const mk=state.currentMonth;
   let total=0;
@@ -6717,21 +6569,19 @@ function updateLiveTotal(type){
   const el=document.getElementById('liveTotal');
   if(el) el.textContent=fmt(total);
 }
-function updateFoodField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}guardEntryEdit((state.foodExpense.entries||[])[idx],function(){state.foodExpense.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('food');});}
-function deleteFoodRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.foodExpense.entries||[])[idx],function(){state.foodExpense.entries.splice(idx,1);markDirty();renderFoodPage();});}
+function updateFoodField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.foodExpense.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('food');}
+function deleteFoodRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}state.foodExpense.entries.splice(idx,1);markDirty();renderFoodPage();}
 function foodAddNextRow(currentIdx){
     const entries = state.foodExpense.entries || [];
     const currentRow = entries[currentIdx];
     const samePerson = currentRow ? (currentRow.person || 'SAQIB') : 'SAQIB';
     const today = selectedMonthDate();
-    const newRow={
+    state.foodExpense.entries.push({
       date: today,
       person: samePerson,
       amount: '',
       notes: ''
-    };
-    state.foodExpense.entries.push(newRow);
-    lockAfterEntry(newRow);
+    });
     renderFoodPage();
     setTimeout(()=>{
       const newIdx = state.foodExpense.entries.length - 1;
@@ -6743,7 +6593,7 @@ function foodAddNextRow(currentIdx){
     }, 50);
   }
 function renderFoodPage(){renderPage('food');}
-function clearFood(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearFood');state.foodExpense.entries=[];saveState();renderFoodPage();showToast('✅ Data saaf ho gaya');});});});}
+function clearFood(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearFood');state.foodExpense.entries=[];saveState();renderFoodPage();showToast('✅ Data saaf ho gaya');});});}
 
 //======= BARAF (ICE) =======
 function renderBaraf(mc){
@@ -6766,11 +6616,11 @@ function renderBaraf(mc){
     ${!all.length?'<div class="empty-state"><i class="ti ti-snowflake-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
-function addBarafRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const row={date:selectedMonthDate(),amount:'',notes:''};state.baraf.entries.push(row);lockAfterEntry(row);renderBarafPage();}
-function updateBarafField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}guardEntryEdit((state.baraf.entries||[])[idx],function(){state.baraf.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('baraf');});}
-function deleteBarafRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.baraf.entries||[])[idx],function(){state.baraf.entries.splice(idx,1);markDirty();renderBarafPage();});}
+function addBarafRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.baraf.entries.push({date:selectedMonthDate(),amount:'',notes:''});markDirty();renderBarafPage();}
+function updateBarafField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.baraf.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('baraf');}
+function deleteBarafRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}state.baraf.entries.splice(idx,1);markDirty();renderBarafPage();}
 function renderBarafPage(){renderPage('baraf');}
-function clearBaraf(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearBaraf');state.baraf.entries=[];saveState();renderBarafPage();showToast('✅ Data saaf ho gaya');});});});}
+function clearBaraf(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearBaraf');state.baraf.entries=[];saveState();renderBarafPage();showToast('✅ Data saaf ho gaya');});});}
 
 //======= CHAY (AFTAB) =======
 function renderChay(mc){
@@ -6803,11 +6653,11 @@ function renderChay(mc){
     ${!all.length?'<div class="empty-state"><i class="ti ti-coffee-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
-function addChayRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const row={date:selectedMonthDate(),person:'AFTAB AHMED',amount:'',notes:''};state.chay.entries.push(row);lockAfterEntry(row);renderPage(currentPage);}
-function updateChayField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}guardEntryEdit((state.chay.entries||[])[idx],function(){state.chay.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('chay');});}
-function deleteChayRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.chay.entries||[])[idx],function(){state.chay.entries.splice(idx,1);markDirty();renderPage(currentPage);});}
+function addChayRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.chay.entries.push({date:selectedMonthDate(),person:'AFTAB AHMED',amount:'',notes:''});markDirty();renderPage(currentPage);}
+function updateChayField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.chay.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('chay');}
+function deleteChayRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}state.chay.entries.splice(idx,1);markDirty();renderPage(currentPage);}
 function renderChayPage(){renderPage('chay');}
-function clearChay(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearChay');state.chay.entries=[];saveState();renderPage(currentPage);showToast('✅ Data saaf ho gaya');});});});}
+function clearChay(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearChay');state.chay.entries=[];saveState();renderPage(currentPage);showToast('✅ Data saaf ho gaya');});});}
 
 //======= EMPLOYEE ADVANCE =======
 const ADV_EMPLOYEES=['SAQIB','AHMED','AMJAD','EHSAN','TAIMOUR','HAMZA'];
@@ -6996,9 +6846,8 @@ function openAdvEntryModal(prefillEmp){
     const amt=Number(document.getElementById('advAmount').value)||0;
     const emp=document.getElementById('advEmp').value;
     if(amt<=0){showToast('⚠️ Amount daalna zaroori hai!');return;}
-    const row={date:document.getElementById('advDate').value,employee:emp,advance:amt,remarks:document.getElementById('advRemarks').value,type:'add',takenFrom:document.getElementById('advTakenFrom').value};
-    state.employeeAdvance.entries.push(row);
-    lockAfterEntry(row);renderAdvancePage();showToast('✅ Advance entry add ho gayi');
+    state.employeeAdvance.entries.push({date:document.getElementById('advDate').value,employee:emp,advance:amt,remarks:document.getElementById('advRemarks').value,type:'add',takenFrom:document.getElementById('advTakenFrom').value});
+    markDirty();renderAdvancePage();showToast('✅ Advance entry add ho gayi');
   },true);
 }
 
@@ -7009,9 +6858,8 @@ function openAdvReturnModal(prefillEmp){
   showModal('Return Entry | رقم واپسی',`<div style="margin-bottom:12px"><label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Date</label><input type="text" id="retDate" value="${todayStr()}" style="width:100%"></div><div style="margin-bottom:12px"><label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Employee</label><select id="retEmp" style="width:100%">${empOpts}</select></div><div style="margin-bottom:12px"><label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Amount Returned (Rs)</label><input type="number" id="retAmount" value="" style="width:100%"></div><div style="margin-bottom:12px"><label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Liya Kis Sy Tha | Taken From</label><select id="retTakenFrom" style="width:100%">${fromOpts}</select></div><div style="margin-bottom:12px"><label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Remarks</label><input type="text" id="retRemarks" value="" style="width:100%"></div>`,'✅ Save',()=>{
     const amt=Number(document.getElementById('retAmount').value)||0;
     if(amt<=0){showToast('⚠️ Amount zero ya negative nahi ho sakta!');return;}
-    const row={date:document.getElementById('retDate').value,employee:document.getElementById('retEmp').value,type:'return',amount:amt,remarks:document.getElementById('retRemarks').value,takenFrom:document.getElementById('retTakenFrom').value};
-    state.employeeAdvance.entries.push(row);
-    lockAfterEntry(row);renderAdvancePage();showToast('✅ Return entry added');
+    state.employeeAdvance.entries.push({date:document.getElementById('retDate').value,employee:document.getElementById('retEmp').value,type:'return',amount:amt,remarks:document.getElementById('retRemarks').value,takenFrom:document.getElementById('retTakenFrom').value});
+    renderAdvancePage();showToast('✅ Return entry added');
   },true);
 }
 function openBossReturnModal(){
@@ -7022,9 +6870,8 @@ function openBossReturnModal(){
     if(amt<=0){showToast('⚠️ Amount zero ya negative nahi ho sakta!');return;}
     const curBal=getEmployeeBalance('SAQIB');
     if(amt>curBal){showToast('⚠️ Wapsi amount baaki advance sy zyada hai! Advance: Rs '+fmt(curBal));return;}
-    const row={date:document.getElementById('bossRetDate').value,employee:'SAQIB',type:'return',amount:amt,advance:-amt,remarks:document.getElementById('bossRetRemarks').value,entryType:'boss_return'};
-    state.employeeAdvance.entries.push(row);
-    lockAfterEntry(row);renderAdvancePage();showToast('✅ Boss wapasi recorded');
+    state.employeeAdvance.entries.push({date:document.getElementById('bossRetDate').value,employee:'SAQIB',type:'return',amount:amt,advance:-amt,remarks:document.getElementById('bossRetRemarks').value,entryType:'boss_return'});
+    renderAdvancePage();showToast('✅ Boss wapasi recorded');
   },true) && (bossRetPreview=function(){const amt=Number(document.getElementById('bossRetAmount').value)||0;const el=document.getElementById('bossRetPreview');if(el){el.innerHTML='Current Outstanding: Rs <span style=\"color:'+(bal>0?'var(--red)':'var(--green)')+'\">'+fmt(bal)+'</span>'+(amt>bal?'<br><span style=\"color:var(--orange);font-weight:600\">⚠️ Wapsi amount baaki advance sy zyada hai!</span>':'');}});
 }
 function showAdvHistoryModal(emp){
@@ -7075,7 +6922,6 @@ function showAdvHistoryModal(emp){
 function filterAdvEmployee(val){advSelectedEmp=val;renderAdvancePage();}
 function updateAdvField(idx,field,val){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}
-  guardEntryEdit((state.employeeAdvance.entries||[])[idx],function(){
   state.employeeAdvance.entries[idx][field]=val;
   const e=state.employeeAdvance.entries[idx];
   if(e.totalCollected!==undefined||e.givenToBoss!==undefined||e.foodExpense!==undefined){
@@ -7086,11 +6932,10 @@ function updateAdvField(idx,field,val){
     }
   }
   renderAdvancePage();
-  });
 }
-function deleteAdvEntry(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}guardEntryEdit((state.employeeAdvance.entries||[])[idx],function(){state.employeeAdvance.entries.splice(idx,1);markDirty();renderAdvancePage();});}
+function deleteAdvEntry(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}state.employeeAdvance.entries.splice(idx,1);renderAdvancePage();}
 function renderAdvancePage(){renderPage('employee-advance');}
-function clearAdvance(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearAdvance');state.employeeAdvance.entries=[];saveState();renderAdvancePage();showToast('✅ Data saaf ho gaya');});});});}
+function clearAdvance(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearAdvance');state.employeeAdvance.entries=[];saveState();renderAdvancePage();showToast('✅ Data saaf ho gaya');});});}
 function clearAllData(){guardedDelete(function(){showModal('⚠️ CONFIRM — SAARA DATA MIT JAYEGA!','<strong style="color:#dc2626">⚠️ YEH ACTION UNDO NAHI HO SAKTA!</strong><br><br>• Saare customers mit jayenge<br>• Saari entries delete ho jayenge<br>• Cloud data bhi mit jayega<br><br><strong>Kya aap sure hain?</strong>','❌ Cancel',()=>{closeModal();},true,null,null,()=>{showModal('⚠️ LAST CHANCE','Backup ban jayega pehle. Fir bhi sab delete ho jayega. <strong>SURE hain?</strong>','🗑️ HAAN, SAB MITAO',()=>{backupState('pre-clearAll');localStorage.removeItem(STATE_KEY);state=getDefaultState();renderPage(currentPage);showToast('⚠️ Saara data delete ho gaya (backup saved)');sb_put('AppStorage','StorageKey=eq.mts_business_state',{StorageKey:'mts_business_state',StorageValue:'{}'}).catch(()=>{});});});});}
 
 //======= OFFICE EXPENSE =======
@@ -7126,12 +6971,11 @@ function renderOfficeExpense(mc){
     ${!rowsWithIdx.length?'<div class="empty-state"><i class="ti ti-building-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
-function addOfficeRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}const row={date:selectedMonthDate(),person:'SAQIB',description:'',amount:'',month:state.currentMonth,notes:''};state.officeExpense.entries.push(row);lockAfterEntry(row);renderOfficePage();}
-function updateOfficeField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}guardEntryEdit((state.officeExpense.entries||[])[idx],function(){state.officeExpense.entries[idx][field]=val;markDirty();if(field==='amount'){const allRows=state.officeExpense.entries||[];const mk=state.currentMonth;const total=allRows.filter(r=>r.month===mk).reduce((s,r)=>s+(Number(r.amount)||0),0);const el=document.getElementById('liveTotal');if(el)el.textContent=fmt(total);}});}
+function addOfficeRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.officeExpense.entries.push({date:selectedMonthDate(),person:'SAQIB',description:'',amount:'',month:state.currentMonth,notes:''});markDirty();renderOfficePage();}
+function updateOfficeField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.officeExpense.entries[idx][field]=val;markDirty();if(field==='amount'){const allRows=state.officeExpense.entries||[];const mk=state.currentMonth;const total=allRows.filter(r=>r.month===mk).reduce((s,r)=>s+(Number(r.amount)||0),0);const el=document.getElementById('liveTotal');if(el)el.textContent=fmt(total);}}
 function deleteOfficeRow(idx){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}
-  guardEntryEdit((state.officeExpense.entries||[])[idx],function(){
-    guardedDelete(function(){
+  guardedDelete(function(){
     const row=(state.officeExpense.entries||[])[idx];
     const label=row?`${row.description||'Entry'} (${fmt(Number(row.amount)||0)})`:'Yeh entry';
     showModal('⚠️ Confirm Delete',`Kya aap <b>${escHtml(label)}</b> delete karna chahte hain?<br><span style="color:#64748b;font-size:12px">Yeh action undo nahi ho sakta.</span>`,'✅ Haan, Delete',()=>{
@@ -7142,10 +6986,9 @@ function deleteOfficeRow(idx){
       showToast('🗑️ Office expense entry delete ho gayi');
     },true);
   });
-  });
 }
 function renderOfficePage(){renderPage('office-expense');}
-function clearOffice(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardEntryEdit(null,function(){guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearOffice');state.officeExpense.entries=[];saveState();renderOfficePage();showToast('✅ Data saaf ho gaya');});});});}
+function clearOffice(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearOffice');state.officeExpense.entries=[];saveState();renderOfficePage();showToast('✅ Data saaf ho gaya');});});}
 
 // ════════════════════════════════════════════════════════
 // CUSTOMER LEDGER REPORT
@@ -7813,13 +7656,11 @@ function updateMonthlyManualDiff(){
   card.style.borderColor=ok?'#10b981':(diff>0?'#ef4444':'#3b82f6');
 }
 function updateClosingManualMaint(v){
-  guardEntryEdit(null,function(){
   const mk=state.currentMonth;
   if(!state.closingManualMaint) state.closingManualMaint={};
   state.closingManualMaint[mk]=v;
   markDirty();
   updateClosingDiff();
-  });
 }
 function updateClosingDiff(){
   const mk=state.currentMonth;
