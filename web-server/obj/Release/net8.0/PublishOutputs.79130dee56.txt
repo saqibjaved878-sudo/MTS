@@ -1,0 +1,7 @@
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\MtsWeb.exe
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\appsettings.Development.json
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\appsettings.json
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\MtsWeb.dll
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\MtsWeb.deps.json
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\MtsWeb.runtimeconfig.json
+D:\MTS Maintince Seet Management System Final 2026\web-server\published\MtsWeb.pdb
