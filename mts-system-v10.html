@@ -5676,7 +5676,7 @@ function renderBossTab(method){
     </div>
     <div style="margin-bottom:12px"><button class="btn btn-green" onclick="addBossRow('${method}')"><i class="ti ti-plus"></i> Add ${method} Entry</button></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Sr#</th><th>Date</th><th>Given By | کس نے دیا</th><th>Amount (Rs)</th><th>Method</th><th>Remarks</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Sr#</th><th>Date</th><th>Given By | کس نے دیا</th><th>Amount (Rs)</th><th>Method</th><th>Remarks</th><th>📷 Photo</th><th>Actions</th></tr></thead>
       <tbody>${fRows.map((r,i)=>{const ai=fIdx[i];const gb=r.givenBy||'SAQIB';const rowColor=gb==='AHMED'?'background:#eff6ff':'';return`<tr style="${rowColor}">
         <td>${i+1}</td>
         <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateBossField(${ai},'date',this.value)" oninput="updateBossField(${ai},'date',this.value)"></td>
@@ -5689,6 +5689,10 @@ function renderBossTab(method){
         <td><input type="number" style="width:120px" value="${r.amount||''}" onchange="updateBossField(${ai},'amount',this.value)" oninput="updateBossField(${ai},'amount',this.value)"></td>
         <td><span style="padding:7px 10px;display:inline-block">${r.method}</span></td>
         <td><input type="text" value="${r.remarks||''}" onchange="updateBossField(${ai},'remarks',this.value)" oninput="updateBossField(${ai},'remarks',this.value)"></td>
+        <td style="text-align:center;white-space:nowrap">
+          <input type="file" id="bossPic_${ai}" accept="image/*" style="display:none" onchange="handleBossPic(${ai},this)">
+          ${r.photo?`<img src="${r.photo}" onclick="viewBossPhoto(${ai})" title="Dekhne ke liye click karein" style="width:38px;height:38px;object-fit:cover;border-radius:8px;border:2px solid var(--green);cursor:pointer;vertical-align:middle"><button class="btn-icon" onclick="removeBossPhoto(${ai})" title="Photo hatayein" style="color:#ef4444;font-size:14px;vertical-align:middle"><i class="ti ti-x"></i></button>`:`<button class="btn btn-sm" onclick="triggerBossPic(${ai})" title="Payment ki photo/screenshot upload karein" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;padding:5px 9px;font-size:11px;font-weight:700;border-radius:8px;white-space:nowrap">📷 Upload</button>`}
+        </td>
         <td style="display:flex;gap:4px;align-items:center"><button onclick="sendBossWhatsApp(${ai})" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;display:inline-flex;align-items:center;gap:3px" title="WhatsApp pe bhejo"><i class="ti ti-brand-whatsapp" style="font-size:14px"></i></button><button class="btn-icon" onclick="deleteBossRow(${ai})"><i class="ti ti-trash"></i></button></td>
       </tr>`;}).join('')}</tbody>
     </table></div>
@@ -5701,6 +5705,69 @@ function updateBossField(idx,field,val){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}
   state.bossPayments.entries[idx][field]=val;
   markDirty();
+}
+// ── Boss payment photo (screenshot/record) ──
+function compressImageToDataUrl(file,maxW,quality,cb){
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      try{
+        const scale=Math.min(1,maxW/(img.width||maxW));
+        const cv=document.createElement('canvas');
+        cv.width=Math.max(1,Math.round((img.width||maxW)*scale));
+        cv.height=Math.max(1,Math.round((img.height||maxW)*scale));
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        cb(cv.toDataURL('image/jpeg',quality));
+      }catch(err){
+        cb(e.target.result);
+      }
+    };
+    img.onerror=function(){cb(e.target.result);};
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function triggerBossPic(ai){const inp=document.getElementById('bossPic_'+ai);if(inp)inp.click();}
+function handleBossPic(ai,input){
+  const f=input.files&&input.files[0];
+  input.value='';
+  if(!f) return;
+  if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Photo nahi laga sakte!');return;}
+  if(f.type&&f.type.indexOf('image/')!==0){showToast('❌ Sirf image file upload karein!');return;}
+  if(f.size>10*1024*1024){showToast('❌ Image 10MB se choti honi chahiye!');return;}
+  compressImageToDataUrl(f,900,0.7,function(dataUrl){
+    if(!state.bossPayments.entries[ai]){showToast('❌ Entry nahi mili!');return;}
+    state.bossPayments.entries[ai].photo=dataUrl;
+    backupState('pre-bossPhoto');
+    saveState();
+    renderBossPage();
+    showToast('📷 Photo save ho gayi — record me rahy gi');
+  });
+}
+function viewBossPhoto(ai){
+  const r=state.bossPayments.entries[ai];
+  if(!r||!r.photo){showToast('📷 Is entry ki photo nahi hai');return;}
+  showModalRaw(`<div style="text-align:center">
+    <h3 style="margin-bottom:4px">📷 Payment Photo</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:10px">${r.method||''} • ${fmt(Number(r.amount)||0)} • ${escHtml(r.date||'')}${r.remarks?' • '+escHtml(r.remarks):''}</div>
+    <img src="${r.photo}" style="max-width:100%;max-height:64vh;border-radius:10px;border:1px solid var(--border);box-shadow:0 4px 20px rgba(0,0,0,.15)">
+    <div class="modal-actions" style="margin-top:12px;justify-content:center">
+      <a href="${r.photo}" download="boss-payment-${ai+1}.jpg" class="btn btn-blue" style="text-decoration:none">⬇️ Download</a>
+      <button class="btn btn-gray" onclick="closeModal()">❌ Close</button>
+    </div>
+  </div>`);
+}
+function removeBossPhoto(ai){
+  if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Photo nahi hata sakte!');return;}
+  const r=state.bossPayments.entries[ai];
+  if(!r||!r.photo){showToast('📷 Photo hai hi nahi');return;}
+  showModal('🗑️ Photo Hatayein','Is entry ki photo delete karni hai?','🗑️ Haan, Hatayein',()=>{
+    delete state.bossPayments.entries[ai].photo;
+    saveState();
+    renderBossPage();
+    showToast('🗑️ Photo hata di gayi');
+  });
 }
 function autoSendBossWhatsApp(idx){
   const r=state.bossPayments.entries[idx];
