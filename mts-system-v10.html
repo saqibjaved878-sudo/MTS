@@ -6669,22 +6669,57 @@ function renderBaraf(mc){
   mc.innerHTML=`
     <div class="page-header"><div><h1>Baraf (Ice)</h1><span class="urdu-title">برف</span></div><div><button class="btn btn-green" onclick="manualSave()"><i class="ti ti-device-floppy"></i> Save</button><button id="updateBtn" class="btn" onclick="commitUpdate()" style="background:linear-gradient(135deg,#1eb37b,#159b67);color:#fff;display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"><i class="ti ti-refresh"></i> Update</button><button class="btn btn-blue" onclick="exportToExcel('baraf')"><i class="ti ti-file-spreadsheet"></i> Export Excel</button><button class="btn btn-green" onclick="addBarafRow()"><i class="ti ti-plus"></i> Add Entry</button><button class="btn btn-red" style="margin-left:8px" onclick="clearBaraf()"><i class="ti ti-trash"></i> Clear All</button></div></div>
     <div class="summary-cards"><div class="summary-card"><div class="label">Total Ice (${mk})</div><div class="value" style="color:var(--blue)" id="liveTotal">${fmt(total)}</div><div class="urdu-label">کل برف</div></div></div>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px"><span>🔒</span> Amount likh kar row se bahar jate hi entry <b>lock</b> ho jati hai — na edit, na delete hoga.</div>
     <div class="table-wrap"><table>
       <thead><tr><th>Sr#</th><th>Date</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
-      <tbody>${all.map((o,si)=>{const r=o.r;const i=o.i;return`<tr>
-        <td>${si+1}</td>
-        <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateBarafField(${i},'date',this.value)" oninput="updateBarafField(${i},'date',this.value)"></td>
-        <td><input type="number" style="width:120px" value="${r.amount||''}" onchange="updateBarafField(${i},'amount',this.value)" oninput="updateBarafField(${i},'amount',this.value)"></td>
-        <td><input type="text" value="${r.notes||''}" onchange="updateBarafField(${i},'notes',this.value)" oninput="updateBarafField(${i},'notes',this.value)"></td>
-        <td><button class="btn-icon" onclick="deleteBarafRow(${i})"><i class="ti ti-trash"></i></button></td>
-      </tr>`;}).join('')}</tbody>
+      <tbody>${all.map((o,si)=>barafRowHTML(o.r,o.i,si)).join('')}</tbody>
     </table></div>
     ${!all.length?'<div class="empty-state"><i class="ti ti-snowflake-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
+// ── Baraf entry lock: amount bharte hi entry permanently read-only ──
+// Na edit, na delete, inputs chhup kar plain text ban jate hain. Koi unlock nahi.
+function barafRowLocked(r){return !!(r&&Number(r.amount)>0);}
+function barafRowHTML(r,i,si){
+  if(barafRowLocked(r)){
+    return `<tr id="baraf-row-${i}" style="background:#f8fafc">
+      <td>${si+1} <span title="🔒 Locked — edit/delete nahi ho sakta" style="cursor:help">🔒</span></td>
+      <td style="padding:9px 6px;color:#334155;font-weight:600;white-space:nowrap">${escHtml(r.date||'-')}</td>
+      <td style="padding:9px 6px;color:#0f172a;font-weight:800">${(Number(r.amount)||0).toLocaleString('en-PK')}</td>
+      <td style="padding:9px 6px;color:#475569">${escHtml(r.notes||'-')}</td>
+      <td></td>
+    </tr>`;
+  }
+  return `<tr id="baraf-row-${i}">
+    <td>${si+1}</td>
+    <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateBarafField(${i},'date',this.value)" oninput="updateBarafField(${i},'date',this.value)" onblur="barafRowBlur(${i},event)"></td>
+    <td><input type="number" style="width:120px" value="${r.amount||''}" onchange="updateBarafField(${i},'amount',this.value)" oninput="updateBarafField(${i},'amount',this.value)" onblur="barafRowBlur(${i},event)"></td>
+    <td><input type="text" value="${r.notes||''}" onchange="updateBarafField(${i},'notes',this.value)" oninput="updateBarafField(${i},'notes',this.value)" onblur="barafRowBlur(${i},event)"></td>
+    <td><button class="btn-icon" onclick="deleteBarafRow(${i})"><i class="ti ti-trash"></i></button></td>
+  </tr>`;
+}
+function barafRowBlur(idx,e){
+  try{
+    const r=(state.baraf.entries||[])[idx];
+    if(!barafRowLocked(r)) return;
+    const tr=document.getElementById('baraf-row-'+idx);
+    const nx=e&&e.relatedTarget;
+    if(tr&&nx&&tr.contains(nx)) return; // isi row ke andar hai — abhi likh raha hai
+    markDirty();
+    updateLiveTotal('baraf');
+    if(tr){
+      let si=0,p=tr.previousElementSibling;
+      while(p){si++;p=p.previousElementSibling;}
+      tr.outerHTML=barafRowHTML(r,idx,si);
+    }else{
+      renderBarafPage();
+    }
+    showToast('🔒 Entry lock ho gayi — ab edit/delete nahi hoga');
+  }catch(err){}
+}
 function addBarafRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.baraf.entries.push({date:selectedMonthDate(),amount:'',notes:''});markDirty();renderBarafPage();}
-function updateBarafField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}state.baraf.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('baraf');}
-function deleteBarafRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}state.baraf.entries.splice(idx,1);markDirty();renderBarafPage();}
+function updateBarafField(idx,field,val){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}const er=(state.baraf.entries||[])[idx];if(barafRowLocked(er)){showToast('🔒 Entry lock ho gayi — change nahi kar sakte!');return;}state.baraf.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('baraf');}
+function deleteBarafRow(idx){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}const er=(state.baraf.entries||[])[idx];if(barafRowLocked(er)){showToast('🔒 Entry lock ho gayi — delete nahi kar sakte!');return;}state.baraf.entries.splice(idx,1);markDirty();renderBarafPage();}
 function renderBarafPage(){renderPage('baraf');}
 function clearBaraf(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Data delete nahi kar sakte!');return;}guardedDelete(function(){showModal('⚠️ Confirm','Kya aap sure hain? Yeh data permanently delete ho jayega. Yeh action undo nahi ho sakta.','✅ Haan, Delete Karo',()=>{backupState('pre-clearBaraf');state.baraf.entries=[];saveState();renderBarafPage();showToast('✅ Data saaf ho gaya');});});}
 
