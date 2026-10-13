@@ -457,7 +457,7 @@ img.emoji{height:1.1em;width:1.1em;margin:0 .05em 0 .1em;vertical-align:-0.15em;
 </div>
 <!-- END ADMIN PERMISSION MODAL -->
 
-<!-- MANUAL AMOUNT LOCK MODAL (PIN 9900) -->
+<!-- MANUAL AMOUNT LOCK MODAL (Admin PIN) -->
 <div id="manualLockModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10000;display:none;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:32px 28px;width:min(340px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center">
     <div style="font-size:40px;margin-bottom:12px">🔒</div>
@@ -474,13 +474,13 @@ img.emoji{height:1.1em;width:1.1em;margin:0 .05em 0 .1em;vertical-align:-0.15em;
 </div>
 <!-- END MANUAL AMOUNT LOCK MODAL -->
 
-<!-- BARAF ENTRY UNLOCK MODAL (PIN 9900) -->
+<!-- BARAF ENTRY UNLOCK MODAL (Admin PIN) -->
 <div id="barafUnlockModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10001;display:none;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:32px 28px;width:min(340px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center">
     <div style="font-size:40px;margin-bottom:12px">🔒</div>
     <div style="font-size:18px;font-weight:800;color:#1a202c;margin-bottom:4px">Entry Locked!</div>
     <div style="font-size:13px;color:#64748b;margin-bottom:6px">Edit/Delete karne ke liye Admin PIN daalein</div>
-    <div style="font-size:12px;color:#ef4444;font-weight:600;margin-bottom:16px">⚠️ اینٹری لاک ہے — PIN 9900 چاہیے</div>
+    <div style="font-size:12px;color:#ef4444;font-weight:600;margin-bottom:16px">⚠️ اینٹری لاک ہے — Admin PIN چاہیے</div>
     <input type="password" id="barafUnlockPin" inputmode="numeric" placeholder="🔑 Admin PIN..." onkeydown="if(event.key==='Enter')checkBarafUnlockPin()" style="width:100%;padding:11px 14px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;text-align:center;letter-spacing:3px;margin-bottom:10px;outline:none;transition:.2s" onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e5e7eb'">
     <div id="barafUnlockErr" style="color:#ef4444;font-size:12px;font-weight:600;margin-bottom:12px;min-height:18px"></div>
     <div style="display:flex;gap:10px">
@@ -2077,7 +2077,7 @@ function guardedDelete(deleteFn){
 
 // ════════════════════════════════════════════════════════
 // MANUAL AMOUNT LOCK — Monthly Summary ki dasthi rakam
-// Post karte hi lock, sirf PIN 9900 se unlock (month-wise)
+// Post karte hi lock, sirf Admin PIN se unlock (month-wise)
 // ════════════════════════════════════════════════════════
 const MANUAL_LOCK_PIN='9900';
 function manualBalLocked(mk){
@@ -2093,7 +2093,7 @@ function postMonthlyManualBal(){
   state.manualBalLock[state.currentMonth]=true;
   markDirty();
   renderPage(currentPage);
-  showToast('📤 Manual amount post ho gaya — 🔒 LOCKED (badalne ke liye PIN 9900)');
+  showToast('📤 Manual amount post ho gaya — 🔒 LOCKED (badalne ke liye Admin PIN)');
 }
 function openManualLockModal(){
   const m=document.getElementById('manualLockModal');
@@ -6691,7 +6691,7 @@ function renderBaraf(mc){
   mc.innerHTML=`
     <div class="page-header"><div><h1>Baraf (Ice)</h1><span class="urdu-title">برف</span></div><div><button class="btn btn-green" onclick="manualSave()"><i class="ti ti-device-floppy"></i> Save</button><button id="updateBtn" class="btn" onclick="commitUpdate()" style="background:linear-gradient(135deg,#1eb37b,#159b67);color:#fff;display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"><i class="ti ti-refresh"></i> Update</button><button class="btn btn-blue" onclick="exportToExcel('baraf')"><i class="ti ti-file-spreadsheet"></i> Export Excel</button><button class="btn btn-green" onclick="addBarafRow()"><i class="ti ti-plus"></i> Add Entry</button><button class="btn btn-red" style="margin-left:8px" onclick="clearBaraf()"><i class="ti ti-trash"></i> Clear All</button></div></div>
     <div class="summary-cards"><div class="summary-card"><div class="label">Total Ice (${mk})</div><div class="value" style="color:var(--blue)" id="liveTotal">${fmt(total)}</div><div class="urdu-label">کل برف</div></div></div>
-    <div style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px"><span>🔒</span> Row se bahar jate hi entry <b>lock</b> — badalne/delete karne ke liye <b>🔓 Edit → PIN 9900</b>.</div>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px"><span>🔒</span> Row se bahar jate hi entry <b>lock</b> — badalne/delete karne ke liye <b>🔓 Edit → Admin PIN</b>.</div>
     <div class="table-wrap"><table>
       <thead><tr><th>Sr#</th><th>Date</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
       <tbody>${all.map((o,si)=>barafRowHTML(o.r,o.i,si)).join('')}</tbody>
@@ -6699,8 +6699,8 @@ function renderBaraf(mc){
     ${!all.length?'<div class="empty-state"><i class="ti ti-snowflake-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
   `;
 }
-// ── Baraf entry lock: row complete hone par lock, edit/delete par PIN 9900 ──
-// Locked row = plain text (inputs chhup jate hain) + 🔓 button (PIN 9900).
+// ── Baraf entry lock: row complete hone par lock, edit/delete par Admin PIN ──
+// Locked row = plain text (inputs chhup jate hain) + 🔓 button (Admin PIN).
 const BARAF_UNLOCK_PIN='9900';
 let _barafUnlockIdx=null;
 let _barafUnlockAction=null;
@@ -6743,11 +6743,11 @@ function checkBarafUnlockPin(){
 function barafRowHTML(r,i,si){
   if(barafRowLocked(r)){
     return `<tr id="baraf-row-${i}" style="background:#f8fafc">
-      <td>${si+1} <span title="🔒 Locked — edit ke liye PIN 9900" style="cursor:help">🔒</span></td>
+      <td>${si+1} <span title="🔒 Locked — edit ke liye Admin PIN" style="cursor:help">🔒</span></td>
       <td style="padding:9px 6px;color:#334155;font-weight:600;white-space:nowrap">${escHtml(r.date||'-')}</td>
       <td style="padding:9px 6px;color:#0f172a;font-weight:800">${(Number(r.amount)||0).toLocaleString('en-PK')}</td>
       <td style="padding:9px 6px;color:#475569">${escHtml(r.notes||'-')}</td>
-      <td style="text-align:center"><button onclick="requestBarafUnlock(${i})" title="🔒 Locked — PIN 9900 se edit/delete" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer">🔓 Edit</button></td>
+      <td style="text-align:center"><button onclick="requestBarafUnlock(${i})" title="🔒 Locked — Admin PIN se edit/delete" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer">🔓 Edit</button></td>
     </tr>`;
   }
   return `<tr id="baraf-row-${i}">
@@ -6776,21 +6776,21 @@ function barafRowBlur(idx,e){
     }else{
       renderBarafPage();
     }
-    showToast('🔒 Entry lock ho gayi — edit/delete ke liye PIN 9900 chahiye');
+    showToast('🔒 Entry lock ho gayi — edit/delete ke liye Admin PIN chahiye');
   }catch(err){}
 }
 function addBarafRow(){if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Nayi entry add nahi kar sakte!');return;}state.baraf.entries.push({date:selectedMonthDate(),amount:'',notes:''});markDirty();renderBarafPage();}
 function updateBarafField(idx,field,val){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Edit nahi kar sakte!');return;}
   const er=(state.baraf.entries||[])[idx];
-  if(er&&er._lock){ showToast('🔒 Entry LOCK hai — edit ke liye PIN 9900 chahiye'); requestBarafUnlock(idx); return; }
+  if(er&&er._lock){ showToast('🔒 Entry LOCK hai — edit ke liye Admin PIN chahiye'); requestBarafUnlock(idx); return; }
   state.baraf.entries[idx][field]=val;markDirty();if(field==='amount')updateLiveTotal('baraf');
 }
 function deleteBarafRow(idx){
   if(isMaintenanceClosed(state.currentMonth)){showToast('🔒 Maintenance CLOSED hai — Delete nahi kar sakte!');return;}
   const er=(state.baraf.entries||[])[idx];
   if(er&&er._lock){
-    showToast('🔒 Entry LOCK hai — delete ke liye PIN 9900 chahiye');
+    showToast('🔒 Entry LOCK hai — delete ke liye Admin PIN chahiye');
     requestBarafUnlock(idx,function(){ deleteBarafRow(idx); });
     return;
   }
@@ -7766,7 +7766,7 @@ function renderMonthlySummary(mc){
           <div style="font-size:11px;color:#64748b;margin-bottom:8px">دستی رقم — خالی چھوڑیں</div>
           <div style="margin:4px auto 0 auto;overflow:hidden">
             <input type="number" id="monthlyManualBal" value="${(state.monthlyManualBal&&state.monthlyManualBal[mk]!==undefined)?state.monthlyManualBal[mk]:''}" placeholder="0"
-              ${manualBalLocked(mk)?'readonly onclick="openManualLockModal()" title="🔒 Posted — change ke liye PIN 9900"':''}
+              ${manualBalLocked(mk)?'readonly onclick="openManualLockModal()" title="🔒 Posted — change ke liye Admin PIN"':''}
               oninput="if(!manualBalLocked()){updateMonthlyManualDiff();markDirty()}"
               onchange="saveMonthlyManualBal(this.value)"
               onwheel="event.preventDefault()"
@@ -7775,7 +7775,7 @@ function renderMonthlySummary(mc){
           ${manualBalLocked(mk)
             ?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:800;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:20px;padding:3px 10px;display:inline-block">🔒 Posted &amp; Locked</div>
                <div style="margin-top:6px"><button onclick="openManualLockModal()" style="padding:6px 14px;font-size:12px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer">🔓 Unlock | تبدیلی</button></div>
-               <div style="font-size:11px;color:#94a3b8;margin-top:6px">PIN 9900 se khulega</div></div>`
+               <div style="font-size:11px;color:#94a3b8;margin-top:6px">Admin PIN se khulega</div></div>`
             :`<div style="margin-top:8px"><button onclick="postMonthlyManualBal()" style="padding:6px 14px;font-size:12px;font-weight:700;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:8px;cursor:pointer">📤 Post Data</button></div>
                <div style="font-size:11px;color:#64748b;margin-top:6px">Apna amount likhen — Post karte hi lock</div>`}
         </div>
@@ -7797,7 +7797,7 @@ function renderMonthlySummary(mc){
 }
 function saveMonthlyManualBal(v){
   if(manualBalLocked()){
-    showToast('🔒 Manual amount LOCKED hai — pehle PIN 9900 se unlock karein!');
+    showToast('🔒 Manual amount LOCKED hai — pehle Admin PIN se unlock karein!');
     const i2=document.getElementById('monthlyManualBal');
     if(i2) i2.value=(state.monthlyManualBal&&state.monthlyManualBal[state.currentMonth])||'';
     return;
