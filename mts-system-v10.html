@@ -3780,13 +3780,14 @@ function renderCustomerMaintenance(mc){
         <table>
           <thead><tr>
             <th>#<br>سیریل</th><th>Customer Name<br>گاہک کا نام</th><th>Mobile<br>موبائل</th><th>City/Area<br>شہر/علاقہ</th><th>Shop Name<br>دوکان</th>
-            <th>Monthly Charges<br>ماہانہ چارجز</th><th>Status<br>حالت</th><th>Collected By<br>کس نے وصول کیا</th><th>Block<br>بند</th><th>Payment Date<br>ادائیگی کی تاریخ</th><th>Actions<br>کارروائی</th>
+            <th>Monthly Charges<br>ماہانہ چارجز</th><th>Received Amount<br>وصول شدہ رقم</th><th>Status<br>حالت</th><th>Collected By<br>کس نے وصول کیا</th><th>Block<br>بند</th><th>Payment Date<br>ادائیگی کی تاریخ</th><th>Actions<br>کارروائی</th>
           </tr></thead>
           <tbody id="registryBody">
             ${reg.length ? reg.map((c,i)=>{
               const info=getCustPaidInfo(i,mk);
               const isBlocked=!!(c&&c.blocked);
               const isPaid=info.paid;
+              const recvAmt=isPaid?Math.max(Number(info.expected)||0,Number(info.received)||0,Number(info.amount)||0):0;
               const status=isBlocked?'blocked':(isPaid?'paid':'unpaid');
               const sc=isBlocked
                 ?{bg:'#f1f5f9',txt:'#475569',label:'🚫 Blocked',badge:'badge-gray'}
@@ -3815,6 +3816,7 @@ function renderCustomerMaintenance(mc){
                 <td>${[c.city,c.area].filter(Boolean).join(', ')||'-'}</td>
                 <td>${escHtml(c.shopName||'-')}</td>
                 <td style="font-weight:700;color:var(--green)">Rs ${Number(c.monthlyCharges||0).toLocaleString('en-PK')}</td>
+                <td style="text-align:right;font-weight:700;color:${isPaid?'#059669':'#94a3b8'}">${isPaid?'Rs '+recvAmt.toLocaleString('en-PK'):'-'}</td>
                 <td><span class="badge ${sc.badge}">${sc.label}</span></td>
                 <td>${personBadge}</td>
                 <td>${blockBtn}</td>
@@ -3839,6 +3841,12 @@ function renderCustomerMaintenance(mc){
               </tr>`;
             }).join('') : ''}
           </tbody>
+          ${reg.length?`<tfoot><tr style="background:#f1f5f9;font-weight:900">
+            <td colspan="5" style="text-align:right;padding:10px 12px">TOTAL (all customers)</td>
+            <td style="text-align:right;padding:10px 12px;color:var(--green)">Rs ${expectedTotal.toLocaleString('en-PK')}</td>
+            <td style="text-align:right;padding:10px 12px;color:#059669">Rs ${totalCollected.toLocaleString('en-PK')}</td>
+            <td colspan="5"></td>
+          </tr></tfoot>`:''}
         </table>
       </div>
       ${!reg.length ? '<div class="empty-state"><i class="ti ti-users-off"></i>Abhi koi customer registered nahi hai<br><span style="font-size:12px;color:#94a3b8">"Add Customer" button dabao naya customer add karne ke liye</span></div>' : ''}
@@ -4394,8 +4402,8 @@ function filterRegistryRows(q){
   if(!tbody) return;
   Array.from(tbody.rows).forEach(tr=>{
     const cells=Array.from(tr.cells);
-    const txt=cells.slice(1,8).map(c=>c.textContent.toLowerCase()).join(' ');
-    const statusCell=cells[6]?.textContent||'';
+    const txt=cells.slice(1,9).map(c=>c.textContent.toLowerCase()).join(' ');
+    const statusCell=cells[7]?.textContent||'';
     const personAttr=tr.getAttribute('data-person')||'NONE';
     const isBlocked=tr.getAttribute('data-block')==='1';
     const matchStatus=!sfv
