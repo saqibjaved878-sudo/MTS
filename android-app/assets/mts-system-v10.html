@@ -3757,6 +3757,8 @@ function getCustPayAmt(custIdx,mk){
 // Actual received: collection sheet/manual amount use karo; agar koi amount enter nahi hua to monthly charge fallback
 function getCustReceivedAmount(info){
   if(!info||!info.paid) return 0;
+  const coll=Number(info.collTotal)||0;
+  if(coll>0) return coll;
   const recv=Number(info.received)||0;
   return recv>0?recv:Number(info.expected)||0;
 }
@@ -8005,11 +8007,12 @@ function renderProfessionalReport(mc){
         const info=getCustPaidInfo(i,mky);
         const exp=Number(info.expected)||0;
         const recv=Number(info.received)||0;
+        const coll=Number(info.collTotal)||0;
         expected+=exp;
         received+=recv;
         if(info.paid){
           paid++;
-          customerCollection+=recv>0?recv:exp;
+          customerCollection+=coll>0?coll:(recv>0?recv:exp);
         }else{
           remaining++;
           outstanding+=exp;
