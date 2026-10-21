@@ -7971,9 +7971,10 @@ function renderProfessionalReport(mc){
   const profitDiff=current.net-previous.net;
   const customerDiff=current.paid-previous.paid;
   const statusText=current.net>0?'Profit':current.net<0?'Loss':'Break Even';
-  const statusColor=current.net>0?'#059669':current.net<0?'#dc2626':'#64748b';
-  const statusBg=current.net>0?'linear-gradient(135deg,#ecfdf5,#d1fae5)':current.net<0?'linear-gradient(135deg,#fef2f2,#fee2e2)':'linear-gradient(135deg,#f8fafc,#f1f5f9)';
-  const statusBorder=current.net>0?'#10b981':current.net<0?'#ef4444':'#cbd5e1';
+  const isProfit=current.net>=0;
+  const profitGradient=isProfit?'linear-gradient(135deg,#047857,#10b981)':'linear-gradient(135deg,#b91c1c,#ef4444)';
+  const profitShadow=isProfit?'0 10px 24px rgba(5,150,105,0.32)':'0 10px 24px rgba(220,38,38,0.30)';
+  const profitIcon=isProfit?'ti ti-trending-up':'ti ti-trending-down';
   const compareCard=(s,title,tone)=>`
     <div class="card" style="padding:18px;border:2px solid ${tone.border};background:${tone.bg}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
@@ -7993,8 +7994,8 @@ function renderProfessionalReport(mc){
           <div style="font-size:16px;font-weight:900;color:#dc2626">${fmt(s.expenses)}</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:10px">
-          <div style="font-size:10px;color:#64748b;font-weight:700">Net Result</div>
-          <div style="font-size:16px;font-weight:900;color:${s.net>=0?'#059669':'#dc2626'}">${fmtSigned(s.net)}</div>
+          <div style="font-size:10px;color:#64748b;font-weight:700">Profit / Loss</div>
+          <div style="font-size:18px;font-weight:900;color:${s.net>=0?'#059669':'#dc2626'}">${fmtSigned(s.net)}</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:10px">
           <div style="font-size:10px;color:#64748b;font-weight:700">Customers</div>
@@ -8060,33 +8061,58 @@ function renderProfessionalReport(mc){
         <div style="font-size:28px;font-weight:900;color:#b45309">${current.remaining}</div>
         <div style="font-size:10px;color:#94a3b8">Pending ${fmt(current.remainingAmount)}</div>
       </div>
-      <div class="card" style="padding:16px;border-left:4px solid ${statusBorder};background:${statusBg}">
-        <div style="font-size:11px;color:#64748b;font-weight:700">Net ${statusText}</div>
-        <div style="font-size:28px;font-weight:900;color:${statusColor}">${fmtSigned(current.net)}</div>
-        <div style="font-size:10px;color:#64748b">Income ${fmt(current.income)} - Expenses ${fmt(current.expenses)}</div>
+      <div class="card" style="padding:18px;border:none;background:${profitGradient};color:#fff;box-shadow:${profitShadow}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="font-size:11px;font-weight:800;letter-spacing:.05em">PROFIT THIS MONTH</div>
+          <i class="${profitIcon}" style="font-size:22px;opacity:.9"></i>
+        </div>
+        <div style="font-size:30px;font-weight:900;line-height:1.2;margin:2px 0">${fmtSigned(current.net)}</div>
+        <div style="font-size:10px;font-weight:700;opacity:.9">${current.label} · ${statusText}</div>
+        <div style="font-size:10px;opacity:.85;margin-top:4px">Income ${fmt(current.income)} - Expenses ${fmt(current.expenses)}</div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:18px">
       ${compareCard(current,'This Month',{bg:'linear-gradient(135deg,#f0fdf4,#ecfdf5)',border:'#a7f3d0',text:'#065f46'})}
       ${compareCard(previous,'Previous Month',{bg:'linear-gradient(135deg,#eff6ff,#f8fafc)',border:'#bfdbfe',text:'#1e40af'})}
     </div>
-    <div class="card" style="padding:16px 18px;margin-bottom:18px;border:2px solid ${profitDiff>=0?'#a7f3d0':'#fecaca'};background:${profitDiff>=0?'linear-gradient(135deg,#ecfdf5,#f0fdf4)':'linear-gradient(135deg,#fef2f2,#fff1f2)'}">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+    <div class="card" style="padding:16px 18px;margin-bottom:18px;border:1px solid #e2e8f0;background:#fff">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <div>
-          <div style="font-size:11px;font-weight:800;color:#64748b">PROFIT CHANGE VS PREVIOUS</div>
-          <div style="font-size:24px;font-weight:900;color:${profitDiff>=0?'#059669':'#dc2626'}">${fmtSigned(profitDiff)}</div>
+          <div style="font-size:15px;font-weight:900;color:#0f172a">Profit Summary</div>
+          <div style="font-size:11px;color:#64748b">Is month ka profit, previous month aur difference</div>
+        </div>
+        <div style="font-size:11px;font-weight:800;color:#065f46;background:#ecfdf5;padding:5px 10px;border-radius:20px">${current.label}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px">
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">THIS MONTH PROFIT</div>
+          <div style="font-size:26px;font-weight:900;color:${current.net>=0?'#059669':'#dc2626'}">${fmtSigned(current.net)}</div>
+          <div style="font-size:10px;color:#94a3b8">${current.label}</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:800;color:#64748b">COLLECTION CHANGE VS PREVIOUS</div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">PREVIOUS MONTH PROFIT</div>
+          <div style="font-size:26px;font-weight:900;color:${previous.net>=0?'#059669':'#dc2626'}">${fmtSigned(previous.net)}</div>
+          <div style="font-size:10px;color:#94a3b8">${previous.label}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">PROFIT DIFFERENCE</div>
+          <div style="font-size:24px;font-weight:900;color:${profitDiff>=0?'#059669':'#dc2626'}">${fmtSigned(profitDiff)}</div>
+          <div style="font-size:10px;color:#94a3b8">This vs previous</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">COLLECTION CHANGE</div>
           <div style="font-size:24px;font-weight:900;color:${collectionDiff>=0?'#059669':'#dc2626'}">${fmtSigned(collectionDiff)}</div>
+          <div style="font-size:10px;color:#94a3b8">This vs previous</div>
         </div>
         <div>
           <div style="font-size:11px;font-weight:800;color:#64748b">PAID CUSTOMERS CHANGE</div>
           <div style="font-size:24px;font-weight:900;color:${customerDiff>=0?'#059669':'#dc2626'}">${customerDiff>0?'+':''}${customerDiff}</div>
+          <div style="font-size:10px;color:#94a3b8">This vs previous</div>
         </div>
         <div>
           <div style="font-size:11px;font-weight:800;color:#64748b">POSTED MANUAL / SHEET</div>
           <div style="font-size:18px;font-weight:900;color:#334155">${fmt(current.manual)} / ${fmt(current.collection)}</div>
+          <div style="font-size:10px;color:#94a3b8">Manual vs sheet</div>
         </div>
       </div>
     </div>
