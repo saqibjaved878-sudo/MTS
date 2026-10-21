@@ -7910,7 +7910,7 @@ function renderProfessionalReport(mc){
     const rows=((cd.saqib&&cd.saqib.rows)||[]).concat((cd.ahmed&&cd.ahmed.rows)||[]);
     const inMonth=(arr)=>(arr||[]).filter(e=>dateToMonthKey(e.date)===mky);
     const officeInMonth=(arr)=>(arr||[]).filter(e=>(e.month||dateToMonthKey(e.date))===mky);
-    const collection=rows.reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const sheetCollection=rows.reduce((s,r)=>s+(Number(r.amount)||0),0);
     const software=inMonth(state.softwareLedger&&state.softwareLedger.entries).reduce((s,e)=>s+(Number(e.totalAmount)||0),0);
     const hardware=inMonth(state.hardwareLedger&&state.hardwareLedger.entries).reduce((s,e)=>s+(Number(e.totalValue)||0),0);
     const food=inMonth(state.foodExpense&&state.foodExpense.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
@@ -7923,28 +7923,40 @@ function renderProfessionalReport(mc){
       return s+(isReturn?-value:value);
     },0);
     const boss=inMonth(state.bossPayments&&state.bossPayments.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const income=collection+software+hardware;
-    const expenses=food+baraf+chay+office+advance+boss;
-    const net=income-expenses;
     const manualRaw=state.monthlyManualBal?state.monthlyManualBal[mky]:'';
     const manual=(manualRaw===''||manualRaw===undefined||manualRaw===null)?0:Number(manualRaw)||0;
-    let paid=0,remaining=0,expected=0,received=0;
+    let paid=0,remaining=0,expected=0,received=0,customerCollection=0,outstanding=0;
     if(reg.length){
       reg.forEach((c,i)=>{
+        if(c&&c.blocked) return;
         const info=getCustPaidInfo(i,mky);
-        expected+=Number(info.expected)||0;
-        received+=Number(info.received)||0;
-        if(info.paid) paid++; else remaining++;
+        const exp=Number(info.expected)||0;
+        const recv=Number(info.received)||0;
+        const amt=Number(info.amount)||0;
+        expected+=exp;
+        received+=recv;
+        if(info.paid){
+          paid++;
+          customerCollection+=Math.max(exp,recv,amt);
+        }else{
+          remaining++;
+          outstanding+=exp;
+        }
       });
     }else{
       const names=new Set(rows.map(r=>normalizeName(r.customerName||'')).filter(Boolean));
       const paidNames=new Set(rows.filter(r=>(Number(r.amount)||0)>0).map(r=>normalizeName(r.customerName||'')).filter(Boolean));
       paid=paidNames.size;
       remaining=Math.max(0,names.size-paid);
-      expected=collection;
-      received=collection;
+      customerCollection=sheetCollection;
+      expected=sheetCollection;
+      received=sheetCollection;
     }
-    return {mk:mky,label:monthLabel(mky),collection,software,hardware,income,food,baraf,chay,office,advance,boss,expenses,net,manual,totalCustomers:reg.length||paid+remaining,paid,remaining,expected,received,remainingAmount:Math.max(0,expected-received)};
+    const collection=customerCollection;
+    const income=collection+software+hardware;
+    const expenses=food+baraf+chay+office+advance+boss;
+    const net=income-expenses;
+    return {mk:mky,label:monthLabel(mky),collection,customerCollection,sheetCollection,software,hardware,income,food,baraf,chay,office,advance,boss,expenses,net,manual,totalCustomers:reg.length||paid+remaining,paid,remaining,expected,received,remainingAmount:Math.max(0,reg.length?outstanding:expected-received)};
   };
   const prevMk=previousMonth(mk);
   const current=statFor(mk);
@@ -7986,8 +7998,8 @@ function renderProfessionalReport(mc){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div style="background:#fff;border-radius:10px;padding:10px">
-          <div style="font-size:10px;color:#64748b;font-weight:700">Collection</div>
-          <div style="font-size:16px;font-weight:900;color:#0f172a">${fmt(s.collection)}</div>
+          <div style="font-size:10px;color:#64748b;font-weight:700">Customer Received</div>
+          <div style="font-size:16px;font-weight:900;color:#0f172a">${fmt(s.customerCollection)}</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:10px">
           <div style="font-size:10px;color:#64748b;font-weight:700">Expenses</div>
@@ -8054,7 +8066,7 @@ function renderProfessionalReport(mc){
       <div class="card" style="padding:16px;border-left:4px solid #059669">
         <div style="font-size:11px;color:#64748b;font-weight:700">Paid This Month</div>
         <div style="font-size:28px;font-weight:900;color:#059669">${current.paid}</div>
-        <div style="font-size:10px;color:#94a3b8">Received ${fmt(current.received)}</div>
+        <div style="font-size:10px;color:#94a3b8">Customer screen ${fmt(current.customerCollection)}</div>
       </div>
       <div class="card" style="padding:16px;border-left:4px solid #d97706">
         <div style="font-size:11px;color:#64748b;font-weight:700">Remaining Customers</div>
@@ -8079,11 +8091,16 @@ function renderProfessionalReport(mc){
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <div>
           <div style="font-size:15px;font-weight:900;color:#0f172a">Profit Summary</div>
-          <div style="font-size:11px;color:#64748b">Is month ka profit, previous month aur difference</div>
+          <div style="font-size:11px;color:#64748b">Customer screen se received, profit aur previous month comparison</div>
         </div>
         <div style="font-size:11px;font-weight:800;color:#065f46;background:#ecfdf5;padding:5px 10px;border-radius:20px">${current.label}</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px">
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">CUSTOMER RECEIVED</div>
+          <div style="font-size:26px;font-weight:900;color:#059669">${fmt(current.customerCollection)}</div>
+          <div style="font-size:10px;color:#94a3b8">Customer screen</div>
+        </div>
         <div>
           <div style="font-size:11px;font-weight:800;color:#64748b">THIS MONTH PROFIT</div>
           <div style="font-size:26px;font-weight:900;color:${current.net>=0?'#059669':'#dc2626'}">${fmtSigned(current.net)}</div>
@@ -8100,7 +8117,7 @@ function renderProfessionalReport(mc){
           <div style="font-size:10px;color:#94a3b8">This vs previous</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:800;color:#64748b">COLLECTION CHANGE</div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">CUSTOMER RECEIVED CHANGE</div>
           <div style="font-size:24px;font-weight:900;color:${collectionDiff>=0?'#059669':'#dc2626'}">${fmtSigned(collectionDiff)}</div>
           <div style="font-size:10px;color:#94a3b8">This vs previous</div>
         </div>
@@ -8110,8 +8127,8 @@ function renderProfessionalReport(mc){
           <div style="font-size:10px;color:#94a3b8">This vs previous</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:800;color:#64748b">POSTED MANUAL / SHEET</div>
-          <div style="font-size:18px;font-weight:900;color:#334155">${fmt(current.manual)} / ${fmt(current.collection)}</div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">MANUAL / COLLECTION SHEET</div>
+          <div style="font-size:18px;font-weight:900;color:#334155">${fmt(current.manual)} / ${fmt(current.sheetCollection)}</div>
           <div style="font-size:10px;color:#94a3b8">Manual vs sheet</div>
         </div>
       </div>
@@ -8132,7 +8149,7 @@ function renderProfessionalReport(mc){
               <th style="padding:10px 12px;text-align:center">Customers</th>
               <th style="padding:10px 12px;text-align:center">Paid</th>
               <th style="padding:10px 12px;text-align:center">Remaining</th>
-              <th style="padding:10px 12px;text-align:right">Collection</th>
+              <th style="padding:10px 12px;text-align:right">Customer Received</th>
               <th style="padding:10px 12px;text-align:right">Expenses</th>
               <th style="padding:10px 12px;text-align:right">Profit / Loss</th>
               <th style="padding:10px 12px;text-align:right">Difference</th>
