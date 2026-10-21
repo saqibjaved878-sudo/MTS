@@ -3695,6 +3695,12 @@ function getCustPayAmt(custIdx,mk){
   const info=getCustPaidInfo(custIdx,mk);
   return info.paid?Math.max(info.amount||0,info.received||0,info.expected||0):0;
 }
+// Actual received: collection sheet/manual amount use karo; agar koi amount enter nahi hua to monthly charge fallback
+function getCustReceivedAmount(info){
+  if(!info||!info.paid) return 0;
+  const recv=Number(info.received)||0;
+  return recv>0?recv:Number(info.expected)||0;
+}
 function getCustPayDate(custIdx,mk){
   ensureCustPayMonth(mk);
   return getCustPaidInfo(custIdx,mk).date||'';
@@ -3716,7 +3722,7 @@ function renderCustomerMaintenance(mc){
   reg.forEach((c,i)=>{
     if(c&&c.blocked){blockedCount++;return;}
     const info=getCustPaidInfo(i,mk);
-    if(info.paid){paidCount++;totalCollected+=Math.max(info.expected,info.received,info.amount);}
+    if(info.paid){paidCount++;totalCollected+=getCustReceivedAmount(info);}
     else{unpaidCount++;totalOutstanding+=Number(c.monthlyCharges||0);}
   });
   const expectedTotal=reg.filter(c=>!(c&&c.blocked)).reduce((s,c)=>s+(Number(c.monthlyCharges)||0),0);
@@ -3787,7 +3793,7 @@ function renderCustomerMaintenance(mc){
               const info=getCustPaidInfo(i,mk);
               const isBlocked=!!(c&&c.blocked);
               const isPaid=info.paid;
-              const recvAmt=isPaid?Math.max(Number(info.expected)||0,Number(info.received)||0,Number(info.amount)||0):0;
+              const recvAmt=getCustReceivedAmount(info);
               const status=isBlocked?'blocked':(isPaid?'paid':'unpaid');
               const sc=isBlocked
                 ?{bg:'#f1f5f9',txt:'#475569',label:'🚫 Blocked',badge:'badge-gray'}
@@ -7940,12 +7946,11 @@ function renderProfessionalReport(mc){
         const info=getCustPaidInfo(i,mky);
         const exp=Number(info.expected)||0;
         const recv=Number(info.received)||0;
-        const amt=Number(info.amount)||0;
         expected+=exp;
         received+=recv;
         if(info.paid){
           paid++;
-          customerCollection+=Math.max(exp,recv,amt);
+          customerCollection+=recv>0?recv:exp;
         }else{
           remaining++;
           outstanding+=exp;
