@@ -3658,17 +3658,77 @@ function getCustPaidInfo(custIdx,mk){
   let collTotal=0,collDate='',collS=0,collA=0;
   if(n&&state.customers&&state.customers[mk]){
     const cd=state.customers[mk];
+    const allRows=[];
     ['saqib','ahmed'].forEach(k=>{
       (cd[k]&&cd[k].rows||[]).forEach(r=>{
         if(normalizeName(r.customerName||'')!==n) return;
-        const a=Number(r.amount)||0;
-        if(a>0){
-          collTotal+=a;
-          if(!collDate)collDate=r.date||'';
-          if(k==='saqib') collS+=a; else collA+=a;
-        }
+        allRows.push({r,k});
       });
     });
+    if(allRows.length){
+      const reg=state.customerRegistry||[];
+      const dupIdx=reg.map((x,i)=>normalizeName(x.customerName||'')===n?i:null).filter(i=>i!==null);
+      if(dupIdx.length>1){
+        const exactMatch=(cust,row)=>{
+          const ca=normalizeName(cust&&cust.area||'');
+          const cc=normalizeName(cust&&cust.city||'');
+          const ra=normalizeName(row.area||'');
+          const rc=normalizeName(row.city||'');
+          if(ca&&ra) return ca===ra;
+          if(cc&&rc) return cc===rc;
+          return false;
+        };
+        const looseMatch=(cust,row)=>{
+          const ca=normalizeName(cust&&cust.area||'');
+          const ra=normalizeName(row.area||'');
+          const cc=normalizeName(cust&&cust.city||'');
+          const rc=normalizeName(row.city||'');
+          if(ca&&ra) return ca.includes(ra)||ra.includes(ca);
+          if(cc&&rc) return cc.includes(rc)||rc.includes(cc);
+          return false;
+        };
+        const remaining=allRows.slice();
+        const assigned=[];
+        dupIdx.forEach(idx=>{
+          const cust=reg[idx];
+          const match=remaining.filter(o=>exactMatch(cust,o.r));
+          assigned[idx]=match;
+          match.forEach(o=>{const i=remaining.indexOf(o); if(i!==-1)remaining.splice(i,1);});
+        });
+        dupIdx.forEach(idx=>{
+          if(assigned[idx].length===0){
+            const cust=reg[idx];
+            const match=remaining.filter(o=>looseMatch(cust,o.r));
+            if(match.length){
+              assigned[idx]=match;
+              match.forEach(o=>{const i=remaining.indexOf(o); if(i!==-1)remaining.splice(i,1);});
+            }
+          }
+        });
+        dupIdx.forEach(idx=>{
+          if(assigned[idx].length===0&&remaining.length){
+            assigned[idx].push(remaining.shift());
+          }
+        });
+        (assigned[custIdx]||[]).forEach(o=>{
+          const a=Number(o.r.amount)||0;
+          if(a>0){
+            collTotal+=a;
+            if(!collDate)collDate=o.r.date||'';
+            if(o.k==='saqib') collS+=a; else collA+=a;
+          }
+        });
+      }else{
+        allRows.forEach(o=>{
+          const a=Number(o.r.amount)||0;
+          if(a>0){
+            collTotal+=a;
+            if(!collDate)collDate=o.r.date||'';
+            if(o.k==='saqib') collS+=a; else collA+=a;
+          }
+        });
+      }
+    }
   }
   const payAmt=p&&Number(p.amount)>0?Number(p.amount):0;
   const manualR=manualRecv[custIdx];
@@ -3692,8 +3752,7 @@ function getCustPaidInfo(custIdx,mk){
 }
 function getCustPayAmt(custIdx,mk){
   ensureCustPayMonth(mk);
-  const info=getCustPaidInfo(custIdx,mk);
-  return info.paid?Math.max(info.amount||0,info.received||0,info.expected||0):0;
+  return getCustReceivedAmount(getCustPaidInfo(custIdx,mk));
 }
 // Actual received: collection sheet/manual amount use karo; agar koi amount enter nahi hua to monthly charge fallback
 function getCustReceivedAmount(info){
@@ -4536,7 +4595,7 @@ function viewCustHistory(idx){
       const statusColor=isPaid?'<span class="badge badge-green">✅ Paid</span>':'<span class="badge badge-red">⏳ Unpaid</span>';
       const parts=mk.split('-');
       const mLabel=MONTHS[parseInt(parts[1])-1]+' '+parts[0];
-      const paidAmt=info.paid?Math.max(info.amount||0,info.received||0,Number(c.monthlyCharges)||0):0;
+      const paidAmt=getCustReceivedAmount(info);
       const personCell=info.paid&&info.collector
         ?(info.collector==='AHMED'?'<span style="color:#1e40af;font-weight:700">👤 AHMED</span>':'<span style="color:#065f46;font-weight:700">👑 SAQIB</span>')
         :'-';
