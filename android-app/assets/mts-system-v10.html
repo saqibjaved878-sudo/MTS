@@ -1662,6 +1662,7 @@ const PAGES=[
   {id:'monthly-summary',icon:'ti ti-report-analytics',label:'Monthly Summary',urdu:'ماہانہ خلاصہ'},
   {id:'person-comparison',icon:'ti ti-arrows-exchange',label:'Saqib vs Ahmed',urdu:'ساقب بمقابلہ احمد'},
   {id:'bill-status',icon:'ti ti-receipt',label:'Paid / Unpaid Bills',urdu:'ادا / غیر ادا بل'},
+  {id:'professional-report',icon:'ti ti-chart-histogram',label:'Professional Report',urdu:'پروفیشنل رپورٹ'},
   {id:'settings',icon:'ti ti-settings',label:'Settings',urdu:'سیٹنگز'},
   {id:'user-management',icon:'ti ti-users-group',label:'User Management',urdu:'یوزر مینجمنٹ',adminOnly:true}
 ];
@@ -1898,7 +1899,7 @@ function getDefaultUsers(){
       canDelete: false,
       canEdit: true,
       canEditCustomers: false,
-      pages: ['dashboard','customers','software','hardware','food','baraf','chay','employee-advance','office-expense','customer-maintenance','monthly-summary','person-comparison','closing-sheet','customer-ledger','bill-status']
+      pages: ['dashboard','customers','software','hardware','food','baraf','chay','employee-advance','office-expense','customer-maintenance','monthly-summary','person-comparison','closing-sheet','customer-ledger','bill-status','professional-report']
     }
   ];
 }
@@ -1964,7 +1965,7 @@ function loadUsers(){
       // Ensure AHMED has all required report pages (existing cloud users)
       const ahmed = deduped.find(u=>u.username==='AHMED');
       if(ahmed && Array.isArray(ahmed.pages)){
-        ['person-comparison','closing-sheet','customer-ledger','bill-status'].forEach(pid=>{
+        ['person-comparison','closing-sheet','customer-ledger','bill-status','professional-report'].forEach(pid=>{
           if(!ahmed.pages.includes(pid)) ahmed.pages.push(pid);
         });
       }
@@ -2787,6 +2788,7 @@ function renderPage(pageId){
     case'monthly-summary':renderMonthlySummary(mc);break;
     case'person-comparison':renderPersonComparison(mc);break;
     case'bill-status':renderBillStatus(mc);break;
+    case'professional-report':renderProfessionalReport(mc);break;
     case'settings':renderSettings(mc);break;
     case'user-management':renderUserManagement(mc);break;
   }
@@ -7886,6 +7888,251 @@ function updateClosingDiff(){
 }
 function renderMonthlySummaryPage(){renderPage('monthly-summary');}
 
+function renderProfessionalReport(mc){
+  const mk=state.currentMonth;
+  ensureMonthData(mk);
+  ensureCustPayMonth(mk);
+  const reg=state.customerRegistry||[];
+  const monthLabel=(mky)=>{
+    const p=(mky||'').split('-');
+    return p.length===2?`${MONTHS[parseInt(p[1],10)-1]} ${p[0]}`:mky;
+  };
+  const previousMonth=(mky)=>{
+    const p=(mky||'').split('-');
+    const y=parseInt(p[0],10),m=parseInt(p[1],10);
+    return y&&m?getMonthKey(new Date(y,m-2,1)):'';
+  };
+  const statFor=(mky)=>{
+    if(!mky) return null;
+    ensureMonthData(mky);
+    ensureCustPayMonth(mky);
+    const cd=state.customers[mky]||{saqib:{rows:[]},ahmed:{rows:[]}};
+    const rows=((cd.saqib&&cd.saqib.rows)||[]).concat((cd.ahmed&&cd.ahmed.rows)||[]);
+    const inMonth=(arr)=>(arr||[]).filter(e=>dateToMonthKey(e.date)===mky);
+    const officeInMonth=(arr)=>(arr||[]).filter(e=>(e.month||dateToMonthKey(e.date))===mky);
+    const collection=rows.reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const software=inMonth(state.softwareLedger&&state.softwareLedger.entries).reduce((s,e)=>s+(Number(e.totalAmount)||0),0);
+    const hardware=inMonth(state.hardwareLedger&&state.hardwareLedger.entries).reduce((s,e)=>s+(Number(e.totalValue)||0),0);
+    const food=inMonth(state.foodExpense&&state.foodExpense.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const baraf=inMonth(state.baraf&&state.baraf.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const chay=inMonth(state.chay&&state.chay.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const office=officeInMonth(state.officeExpense&&state.officeExpense.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const advance=inMonth(state.employeeAdvance&&state.employeeAdvance.entries).reduce((s,e)=>{
+      const isReturn=(e.type||'add')==='return';
+      const value=isReturn?(Number(e.amount)||0):(Number(e.advance)||0);
+      return s+(isReturn?-value:value);
+    },0);
+    const boss=inMonth(state.bossPayments&&state.bossPayments.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const income=collection+software+hardware;
+    const expenses=food+baraf+chay+office+advance+boss;
+    const net=income-expenses;
+    const manualRaw=state.monthlyManualBal?state.monthlyManualBal[mky]:'';
+    const manual=(manualRaw===''||manualRaw===undefined||manualRaw===null)?0:Number(manualRaw)||0;
+    let paid=0,remaining=0,expected=0,received=0;
+    if(reg.length){
+      reg.forEach((c,i)=>{
+        const info=getCustPaidInfo(i,mky);
+        expected+=Number(info.expected)||0;
+        received+=Number(info.received)||0;
+        if(info.paid) paid++; else remaining++;
+      });
+    }else{
+      const names=new Set(rows.map(r=>normalizeName(r.customerName||'')).filter(Boolean));
+      const paidNames=new Set(rows.filter(r=>(Number(r.amount)||0)>0).map(r=>normalizeName(r.customerName||'')).filter(Boolean));
+      paid=paidNames.size;
+      remaining=Math.max(0,names.size-paid);
+      expected=collection;
+      received=collection;
+    }
+    return {mk:mky,label:monthLabel(mky),collection,software,hardware,income,food,baraf,chay,office,advance,boss,expenses,net,manual,totalCustomers:reg.length||paid+remaining,paid,remaining,expected,received,remainingAmount:Math.max(0,expected-received)};
+  };
+  const prevMk=previousMonth(mk);
+  const current=statFor(mk);
+  const previous=statFor(prevMk);
+  const monthSet=new Set([mk,prevMk]);
+  Object.keys(state.customers||{}).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k)) monthSet.add(k);});
+  const addMonths=(arr)=>(arr||[]).forEach(e=>{const k=dateToMonthKey(e.date);if(k) monthSet.add(k);});
+  addMonths(state.softwareLedger&&state.softwareLedger.entries);
+  addMonths(state.hardwareLedger&&state.hardwareLedger.entries);
+  addMonths(state.foodExpense&&state.foodExpense.entries);
+  addMonths(state.baraf&&state.baraf.entries);
+  addMonths(state.chay&&state.chay.entries);
+  addMonths(state.employeeAdvance&&state.employeeAdvance.entries);
+  addMonths(state.bossPayments&&state.bossPayments.entries);
+  (state.officeExpense&&state.officeExpense.entries||[]).forEach(e=>{
+    const k=e.month||dateToMonthKey(e.date);
+    if(k) monthSet.add(k);
+  });
+  const stats=[...monthSet].filter(Boolean).sort().reverse().map(statFor);
+  const statMap={};
+  stats.forEach(s=>{statMap[s.mk]=s;});
+  const losses=stats.filter(s=>s.net<0&&(s.income>0||s.expenses>0));
+  const collectionDiff=current.collection-previous.collection;
+  const profitDiff=current.net-previous.net;
+  const customerDiff=current.paid-previous.paid;
+  const statusText=current.net>0?'Profit':current.net<0?'Loss':'Break Even';
+  const statusColor=current.net>0?'#059669':current.net<0?'#dc2626':'#64748b';
+  const statusBg=current.net>0?'linear-gradient(135deg,#ecfdf5,#d1fae5)':current.net<0?'linear-gradient(135deg,#fef2f2,#fee2e2)':'linear-gradient(135deg,#f8fafc,#f1f5f9)';
+  const statusBorder=current.net>0?'#10b981':current.net<0?'#ef4444':'#cbd5e1';
+  const compareCard=(s,title,tone)=>`
+    <div class="card" style="padding:18px;border:2px solid ${tone.border};background:${tone.bg}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
+        <div>
+          <div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${tone.text}">${title}</div>
+          <div style="font-size:18px;font-weight:900;color:#0f172a">${s.label}</div>
+        </div>
+        <div style="font-size:11px;font-weight:800;color:${tone.text};background:#fff;padding:5px 10px;border-radius:20px">${s.mk}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Collection</div>
+          <div style="font-size:16px;font-weight:900;color:#0f172a">${fmt(s.collection)}</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Expenses</div>
+          <div style="font-size:16px;font-weight:900;color:#dc2626">${fmt(s.expenses)}</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Net Result</div>
+          <div style="font-size:16px;font-weight:900;color:${s.net>=0?'#059669':'#dc2626'}">${fmtSigned(s.net)}</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Customers</div>
+          <div style="font-size:16px;font-weight:900;color:#0f172a">${s.paid} / ${s.totalCustomers}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:12px;font-size:11px;color:#64748b">
+        <span>Total income: <strong style="color:#0f172a">${fmt(s.income)}</strong></span>
+        <span>Remaining: <strong style="color:#b45309">${s.remaining} customers</strong></span>
+      </div>
+    </div>`;
+  const prevOf=(mky)=>{
+    const p=(mky||'').split('-');
+    const y=parseInt(p[0],10),m=parseInt(p[1],10);
+    return y&&m?getMonthKey(new Date(y,m-2,1)):'';
+  };
+  const monthRows=stats.map(s=>{
+    const p=statMap[prevOf(s.mk)];
+    const diff=p?s.net-p.net:null;
+    const loss=s.net<0&&(s.income>0||s.expenses>0);
+    return `<tr style="background:${loss?'#fff1f2':s.mk===mk?'#f0fdf4':'#fff'}">
+      <td style="padding:10px 12px;font-weight:800;white-space:nowrap">${s.label}${s.mk===mk?' <span style="font-size:9px;background:#059669;color:#fff;padding:2px 6px;border-radius:10px">CURRENT</span>':''}</td>
+      <td style="padding:10px 12px;text-align:center">${s.totalCustomers}</td>
+      <td style="padding:10px 12px;text-align:center;color:#059669;font-weight:700">${s.paid}</td>
+      <td style="padding:10px 12px;text-align:center;color:#b45309;font-weight:700">${s.remaining}</td>
+      <td style="padding:10px 12px;text-align:right">${fmt(s.collection)}</td>
+      <td style="padding:10px 12px;text-align:right;color:#dc2626">${fmt(s.expenses)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:900;color:${s.net>=0?'#059669':'#dc2626'}">${fmtSigned(s.net)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:700;color:${diff===null?'#94a3b8':diff>=0?'#059669':'#dc2626'}">${diff===null?'-':fmtSigned(diff)}</td>
+    </tr>`;
+  }).join('');
+  const lossRows=losses.length?losses.map(s=>`
+    <tr>
+      <td style="padding:9px 12px;font-weight:800">${s.label}</td>
+      <td style="padding:9px 12px;text-align:right">${fmt(s.income)}</td>
+      <td style="padding:9px 12px;text-align:right;color:#dc2626">${fmt(s.expenses)}</td>
+      <td style="padding:9px 12px;text-align:right;font-weight:900;color:#dc2626">${fmt(Math.abs(s.net))}</td>
+    </tr>`).join(''):`<tr><td colspan="4" style="padding:18px;text-align:center;color:#059669;font-weight:700">No loss month found in available data</td></tr>`;
+  mc.innerHTML=`
+    <div class="page-header">
+      <div>
+        <h1>Professional Report</h1>
+        <span class="urdu-title">پروفیشنل رپورٹ — Customer, Collection aur Profit / Loss</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${monthSelectorHTML()}
+        <button class="btn btn-blue" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px">
+      <div class="card" style="padding:16px;border-left:4px solid #2563eb">
+        <div style="font-size:11px;color:#64748b;font-weight:700">Total Customers</div>
+        <div style="font-size:28px;font-weight:900;color:#1e3a8a">${current.totalCustomers}</div>
+        <div style="font-size:10px;color:#94a3b8">Customer registry</div>
+      </div>
+      <div class="card" style="padding:16px;border-left:4px solid #059669">
+        <div style="font-size:11px;color:#64748b;font-weight:700">Paid This Month</div>
+        <div style="font-size:28px;font-weight:900;color:#059669">${current.paid}</div>
+        <div style="font-size:10px;color:#94a3b8">Received ${fmt(current.received)}</div>
+      </div>
+      <div class="card" style="padding:16px;border-left:4px solid #d97706">
+        <div style="font-size:11px;color:#64748b;font-weight:700">Remaining Customers</div>
+        <div style="font-size:28px;font-weight:900;color:#b45309">${current.remaining}</div>
+        <div style="font-size:10px;color:#94a3b8">Pending ${fmt(current.remainingAmount)}</div>
+      </div>
+      <div class="card" style="padding:16px;border-left:4px solid ${statusBorder};background:${statusBg}">
+        <div style="font-size:11px;color:#64748b;font-weight:700">Net ${statusText}</div>
+        <div style="font-size:28px;font-weight:900;color:${statusColor}">${fmtSigned(current.net)}</div>
+        <div style="font-size:10px;color:#64748b">Income ${fmt(current.income)} - Expenses ${fmt(current.expenses)}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:18px">
+      ${compareCard(current,'This Month',{bg:'linear-gradient(135deg,#f0fdf4,#ecfdf5)',border:'#a7f3d0',text:'#065f46'})}
+      ${compareCard(previous,'Previous Month',{bg:'linear-gradient(135deg,#eff6ff,#f8fafc)',border:'#bfdbfe',text:'#1e40af'})}
+    </div>
+    <div class="card" style="padding:16px 18px;margin-bottom:18px;border:2px solid ${profitDiff>=0?'#a7f3d0':'#fecaca'};background:${profitDiff>=0?'linear-gradient(135deg,#ecfdf5,#f0fdf4)':'linear-gradient(135deg,#fef2f2,#fff1f2)'}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">PROFIT CHANGE VS PREVIOUS</div>
+          <div style="font-size:24px;font-weight:900;color:${profitDiff>=0?'#059669':'#dc2626'}">${fmtSigned(profitDiff)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">COLLECTION CHANGE VS PREVIOUS</div>
+          <div style="font-size:24px;font-weight:900;color:${collectionDiff>=0?'#059669':'#dc2626'}">${fmtSigned(collectionDiff)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">PAID CUSTOMERS CHANGE</div>
+          <div style="font-size:24px;font-weight:900;color:${customerDiff>=0?'#059669':'#dc2626'}">${customerDiff>0?'+':''}${customerDiff}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#64748b">POSTED MANUAL / SHEET</div>
+          <div style="font-size:18px;font-weight:900;color:#334155">${fmt(current.manual)} / ${fmt(current.collection)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="padding:0;margin-bottom:18px;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:15px;font-weight:900;color:#0f172a">Month-wise Profit &amp; Loss</div>
+          <div style="font-size:11px;color:#64748b">Collection, customer status aur previous month difference</div>
+        </div>
+        <div style="font-size:11px;font-weight:800;color:${losses.length?'#dc2626':'#059669'};background:#fff;padding:5px 10px;border-radius:20px">Loss months: ${losses.length}</div>
+      </div>
+      <div style="overflow:auto">
+        <table style="width:100%;min-width:900px;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#f1f5f9;color:#334155">
+              <th style="padding:10px 12px;text-align:left">Month</th>
+              <th style="padding:10px 12px;text-align:center">Customers</th>
+              <th style="padding:10px 12px;text-align:center">Paid</th>
+              <th style="padding:10px 12px;text-align:center">Remaining</th>
+              <th style="padding:10px 12px;text-align:right">Collection</th>
+              <th style="padding:10px 12px;text-align:right">Expenses</th>
+              <th style="padding:10px 12px;text-align:right">Profit / Loss</th>
+              <th style="padding:10px 12px;text-align:right">Difference</th>
+            </tr>
+          </thead>
+          <tbody>${monthRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #fee2e2;background:#fff1f2">
+        <div style="font-size:15px;font-weight:900;color:#991b1b">Loss Months</div>
+        <div style="font-size:11px;color:#b91c1c">Jin months mein expenses income se zyada rahe</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#fef2f2;color:#991b1b">
+          <th style="padding:9px 12px;text-align:left">Month</th>
+          <th style="padding:9px 12px;text-align:right">Income</th>
+          <th style="padding:9px 12px;text-align:right">Expenses</th>
+          <th style="padding:9px 12px;text-align:right">Loss</th>
+        </tr></thead>
+        <tbody>${lossRows}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderPersonComparison(mc){
   const mk=state.currentMonth;
   ensureMonthData(mk);
@@ -9059,6 +9306,8 @@ const ALL_PAGES_LIST = [
   {id:'office-expense',label:'Office Expense'},
   {id:'customer-ledger',label:'Customer Ledger Report'},
   {id:'monthly-summary',label:'Monthly Summary'},
+  {id:'bill-status',label:'Paid / Unpaid Bills'},
+  {id:'professional-report',label:'Professional Report'},
   {id:'settings',label:'Settings'},
 ];
 
