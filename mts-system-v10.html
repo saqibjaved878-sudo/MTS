@@ -7998,6 +7998,51 @@ function updateClosingDiff(){
 }
 function renderMonthlySummaryPage(){renderPage('monthly-summary');}
 
+// ── User-wise (SAQIB / AHMED) month breakdown for Professional Report ──
+function userMonthBreakdown(mk,user){
+  mk=mk||state.currentMonth;
+  ensureMonthData(mk);
+  ensureCustPayMonth(mk);
+  const key=(user==='AHMED')?'ahmed':'saqib';
+  const cd=state.customers[mk]||{};
+  const rows=((cd[key]&&cd[key].rows)||[]);
+  const inMonth=(arr)=>(arr||[]).filter(e=>dateToMonthKey(e.date)===mk);
+  const nameSet=new Set();
+  let sheetAmount=0;
+  rows.forEach(r=>{
+    sheetAmount+=Number(r.amount)||0;
+    const n=normalizeName(r.customerName||'');
+    if(n) nameSet.add(n);
+  });
+  // Maintenance screen se is user ne kitne customers / kitna payment liya
+  const reg=state.customerRegistry||[];
+  let maintCount=0,maintAmount=0;
+  reg.forEach((c,i)=>{
+    if(c&&c.blocked) return;
+    const info=getCustPaidInfo(i,mk);
+    if(!info.paid) return;
+    if(info.collector!==user) return;
+    maintCount++;
+    maintAmount+=getCustReceivedAmount(info);
+  });
+  // Boss ko is user ne kitna diya
+  const bossGiven=inMonth(state.bossPayments&&state.bossPayments.entries).reduce((s,e)=>{
+    const gb=(e.givenBy||'SAQIB');
+    return gb===user?s+(Number(e.amount)||0):s;
+  },0);
+  // Person mapping — expenses kis user ke naam hain
+  const personOf=(p)=>{
+    const v=String(p||'').toUpperCase();
+    if(v==='SAQIB'||v==='SAQIB JAVED') return 'SAQIB';
+    if(v==='AHMED'||v==='AFTAB AHMED') return 'AHMED';
+    return '';
+  };
+  const foodExp=inMonth(state.foodExpense&&state.foodExpense.entries).reduce((s,e)=>personOf(e.person)===user?s+(Number(e.amount)||0):s,0);
+  const chayExp=inMonth(state.chay&&state.chay.entries).reduce((s,e)=>personOf(e.person)===user?s+(Number(e.amount)||0):s,0);
+  const officeExp=(state.officeExpense&&state.officeExpense.entries||[]).filter(e=>(e.month||dateToMonthKey(e.date))===mk).reduce((s,e)=>personOf(e.person)===user?s+(Number(e.amount)||0):s,0);
+  const expenses=foodExp+chayExp+officeExp;
+  return {user,key,customers:nameSet.size,entries:rows.length,sheetAmount,maintCount,maintAmount,bossGiven,expenses,foodExp,chayExp,officeExp};
+}
 function renderProfessionalReport(mc){
   const mk=state.currentMonth;
   ensureMonthData(mk);
@@ -8094,6 +8139,55 @@ function renderProfessionalReport(mc){
   const customerDiff=current.paid-previous.paid;
   const statusText=current.net>0?'Profit':current.net<0?'Loss':'Break Even';
   const isProfit=current.net>=0;
+  // ── User-wise cards (SAQIB / AHMED) ──
+  const uS=userMonthBreakdown(mk,'SAQIB');
+  const uA=userMonthBreakdown(mk,'AHMED');
+  const bossTotal=uS.bossGiven+uA.bossGiven;
+  const sharedExpenses=current.baraf+current.advance;
+  const userCard=(u,tone,short)=>`
+    <div class="card" style="padding:18px;border:2px solid ${tone.border};background:${tone.bg}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:38px;height:38px;border-radius:50%;background:${tone.chip};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;overflow:hidden">
+            ${getUserPic(u.user)?`<img src="${getUserPic(u.user)}" style="width:100%;height:100%;object-fit:cover">`:short}
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${tone.text}">${tone.label}</div>
+            <div style="font-size:18px;font-weight:900;color:#0f172a">${u.user}</div>
+          </div>
+        </div>
+        <div style="font-size:11px;font-weight:800;color:${tone.text};background:#fff;padding:5px 10px;border-radius:20px">${current.label}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Customers | گاہک</div>
+          <div style="font-size:20px;font-weight:900;color:#0f172a">${u.customers}</div>
+          <div style="font-size:10px;color:#94a3b8">Sheet ${fmt(u.sheetAmount)}</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Maintenance se liya | مینٹیننس</div>
+          <div style="font-size:18px;font-weight:900;color:#059669">${fmt(u.maintAmount)}</div>
+          <div style="font-size:10px;color:#94a3b8">${u.maintCount} customers paid</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Expenses kiye | اخراجات</div>
+          <div style="font-size:18px;font-weight:900;color:#dc2626">${fmt(u.expenses)}</div>
+          <div style="font-size:10px;color:#94a3b8">Food ${fmt(u.foodExp)} · Chai ${fmt(u.chayExp)} · Office ${fmt(u.officeExp)}</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:10px">
+          <div style="font-size:10px;color:#64748b;font-weight:700">Boss ko diya | باس ko دیا</div>
+          <div style="font-size:18px;font-weight:900;color:#b45309">${fmt(u.bossGiven)}</div>
+          <div style="font-size:10px;color:#94a3b8">${u.user} ne diya</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;background:#fff;border-radius:10px;padding:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:900;color:#0f172a">Boss ko Total | دونوں نے مل کر</div>
+          <div style="font-size:10px;color:#94a3b8">SAQIB ${fmt(uS.bossGiven)} + AHMED ${fmt(uA.bossGiven)}</div>
+        </div>
+        <div style="font-size:20px;font-weight:900;color:#b45309">${fmt(bossTotal)}</div>
+      </div>
+    </div>`;
   const profitGradient=isProfit?'linear-gradient(135deg,#047857,#10b981)':'linear-gradient(135deg,#b91c1c,#ef4444)';
   const profitShadow=isProfit?'0 10px 24px rgba(5,150,105,0.32)':'0 10px 24px rgba(220,38,38,0.30)';
   const profitIcon=isProfit?'ti ti-trending-up':'ti ti-trending-down';
@@ -8196,6 +8290,19 @@ function renderProfessionalReport(mc){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:18px">
       ${compareCard(current,'This Month',{bg:'linear-gradient(135deg,#f0fdf4,#ecfdf5)',border:'#a7f3d0',text:'#065f46'})}
       ${compareCard(previous,'Previous Month',{bg:'linear-gradient(135deg,#eff6ff,#f8fafc)',border:'#bfdbfe',text:'#1e40af'})}
+    </div>
+    <div class="card" style="padding:16px 18px;margin-bottom:18px;border:1px solid #e2e8f0;background:#fff">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div>
+          <div style="font-size:15px;font-weight:900;color:#0f172a">User-wise Closing | SAQIB vs AHMED</div>
+          <div style="font-size:11px;color:#64748b">Customers, maintenance collection, expenses aur boss ko diya amount</div>
+        </div>
+        <div style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:5px 10px;border-radius:20px">Boss total ${fmt(bossTotal)} · Shared expenses ${fmt(sharedExpenses)}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+        ${userCard(uS,{bg:'linear-gradient(135deg,#ecfdf5,#f0fdf4)',border:'#a7f3d0',text:'#065f46',chip:'#059669',label:'SAQIB'},'SQ')}
+        ${userCard(uA,{bg:'linear-gradient(135deg,#eff6ff,#f8fafc)',border:'#bfdbfe',text:'#1e40af',chip:'#2563eb',label:'AHMED'},'AH')}
+      </div>
     </div>
     <div class="card" style="padding:16px 18px;margin-bottom:18px;border:1px solid #e2e8f0;background:#fff">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
