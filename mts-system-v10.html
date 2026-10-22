@@ -8037,11 +8037,35 @@ function userMonthBreakdown(mk,user){
     if(v==='AHMED'||v==='AFTAB AHMED') return 'AHMED';
     return '';
   };
-  const foodExp=inMonth(state.foodExpense&&state.foodExpense.entries).reduce((s,e)=>personOf(e.person)===user?s+(Number(e.amount)||0):s,0);
-  const chayExp=inMonth(state.chay&&state.chay.entries).reduce((s,e)=>personOf(e.person)===user?s+(Number(e.amount)||0):s,0);
-  const officeExp=(state.officeExpense&&state.officeExpense.entries||[]).filter(e=>(e.month||dateToMonthKey(e.date))===mk).reduce((s,e)=>personOf(e.person)===user?s+(Number(e.amount)||0):s,0);
-  const expenses=foodExp+chayExp+officeExp;
-  return {user,key,customers:nameSet.size,entries:rows.length,sheetAmount,maintCount,maintAmount,bossGiven,expenses,foodExp,chayExp,officeExp};
+  const mine={SAQIB:{food:0,chay:0,office:0,advance:0},AHMED:{food:0,chay:0,office:0,advance:0}};
+  let otherPersons=0,advanceOther=0;
+  inMonth(state.foodExpense&&state.foodExpense.entries).forEach(e=>{
+    const amt=Number(e.amount)||0; const who=personOf(e.person);
+    if(who) mine[who].food+=amt; else otherPersons+=amt;
+  });
+  inMonth(state.chay&&state.chay.entries).forEach(e=>{
+    const amt=Number(e.amount)||0; const who=personOf(e.person);
+    if(who) mine[who].chay+=amt; else otherPersons+=amt;
+  });
+  (state.officeExpense&&state.officeExpense.entries||[]).filter(e=>(e.month||dateToMonthKey(e.date))===mk).forEach(e=>{
+    const amt=Number(e.amount)||0; const who=personOf(e.person);
+    if(who) mine[who].office+=amt; else otherPersons+=amt;
+  });
+  // Advance kis ne diya (takenFrom) — return minus hota hai
+  inMonth(state.employeeAdvance&&state.employeeAdvance.entries).forEach(e=>{
+    const isReturn=(e.type||'add')==='return';
+    const value=isReturn?(Number(e.amount)||0):(Number(e.advance)||0);
+    const signed=isReturn?-value:value;
+    const who=personOf(e.takenFrom)||personOf(e.employee);
+    if(who) mine[who].advance+=signed; else advanceOther+=signed;
+  });
+  // Baraf (Ice) me person nahi hota — shared
+  const ice=inMonth(state.baraf&&state.baraf.entries).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const m=mine[user];
+  const expenses=m.food+m.chay+m.office+m.advance;
+  return {user,key,customers:nameSet.size,entries:rows.length,sheetAmount,maintCount,maintAmount,bossGiven,
+    food:m.food,chay:m.chay,office:m.office,advance:m.advance,expenses,
+    ice,otherPersons,advanceOther,shared:ice+otherPersons+advanceOther};
 }
 function renderProfessionalReport(mc){
   const mk=state.currentMonth;
@@ -8143,7 +8167,9 @@ function renderProfessionalReport(mc){
   const uS=userMonthBreakdown(mk,'SAQIB');
   const uA=userMonthBreakdown(mk,'AHMED');
   const bossTotal=uS.bossGiven+uA.bossGiven;
-  const sharedExpenses=current.baraf+current.advance;
+  const sharedExpenses=uS.shared;
+  const sharedDetail=`Ice ${fmt(uS.ice)} · Other persons ${fmt(uS.otherPersons)} · Advance unassigned ${fmt(uS.advanceOther)}`;
+  const expensesReconcile=uS.expenses+uA.expenses+bossTotal+sharedExpenses;
   const userCard=(u,tone,short)=>`
     <div class="card" style="padding:18px;border:2px solid ${tone.border};background:${tone.bg}">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -8172,7 +8198,7 @@ function renderProfessionalReport(mc){
         <div style="background:#fff;border-radius:10px;padding:10px">
           <div style="font-size:10px;color:#64748b;font-weight:700">Expenses kiye | اخراجات</div>
           <div style="font-size:18px;font-weight:900;color:#dc2626">${fmt(u.expenses)}</div>
-          <div style="font-size:10px;color:#94a3b8">Food ${fmt(u.foodExp)} · Chai ${fmt(u.chayExp)} · Office ${fmt(u.officeExp)}</div>
+          <div style="font-size:10px;color:#94a3b8">Food ${fmt(u.food)} · Chai ${fmt(u.chay)} · Office ${fmt(u.office)} · Advance ${fmt(u.advance)}</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:10px">
           <div style="font-size:10px;color:#64748b;font-weight:700">Boss ko diya | باس ko دیا</div>
@@ -8186,6 +8212,13 @@ function renderProfessionalReport(mc){
           <div style="font-size:10px;color:#94a3b8">SAQIB ${fmt(uS.bossGiven)} + AHMED ${fmt(uA.bossGiven)}</div>
         </div>
         <div style="font-size:20px;font-weight:900;color:#b45309">${fmt(bossTotal)}</div>
+      </div>
+      <div style="margin-top:8px;background:#fff;border-radius:10px;padding:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:900;color:#0f172a">Total Out | سب kharch</div>
+          <div style="font-size:10px;color:#94a3b8">Expenses ${fmt(u.expenses)} + Boss ${fmt(u.bossGiven)}</div>
+        </div>
+        <div style="font-size:20px;font-weight:900;color:#dc2626">${fmt(u.expenses+u.bossGiven)}</div>
       </div>
     </div>`;
   const profitGradient=isProfit?'linear-gradient(135deg,#047857,#10b981)':'linear-gradient(135deg,#b91c1c,#ef4444)';
@@ -8297,11 +8330,16 @@ function renderProfessionalReport(mc){
           <div style="font-size:15px;font-weight:900;color:#0f172a">User-wise Closing | SAQIB vs AHMED</div>
           <div style="font-size:11px;color:#64748b">Customers, maintenance collection, expenses aur boss ko diya amount</div>
         </div>
-        <div style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:5px 10px;border-radius:20px">Boss total ${fmt(bossTotal)} · Shared expenses ${fmt(sharedExpenses)}</div>
+        <div style="font-size:11px;font-weight:800;color:#b45309;background:#fffbeb;padding:5px 10px;border-radius:20px">Boss total ${fmt(bossTotal)} · Shared ${fmt(sharedExpenses)}</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
         ${userCard(uS,{bg:'linear-gradient(135deg,#ecfdf5,#f0fdf4)',border:'#a7f3d0',text:'#065f46',chip:'#059669',label:'SAQIB'},'SQ')}
         ${userCard(uA,{bg:'linear-gradient(135deg,#eff6ff,#f8fafc)',border:'#bfdbfe',text:'#1e40af',chip:'#2563eb',label:'AHMED'},'AH')}
+      </div>
+      <div style="margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:11px;color:#64748b;line-height:1.7">
+        <div><b style="color:#0f172a">Expense reconciliation | اخراجات کا حساب:</b> Total ${fmt(expensesReconcile)} = SAQIB ${fmt(uS.expenses)} + AHMED ${fmt(uA.expenses)} + Boss ${fmt(bossTotal)} + Shared ${fmt(sharedExpenses)}</div>
+        <div><b style="color:#0f172a">Shared / unassigned:</b> ${sharedDetail}</div>
+        <div><b style="color:#0f172a">Report total expenses:</b> ${fmt(current.expenses)} (Ice/Advance jaise shared items kisi ek user me nahi, is liye upar Shared me hain)</div>
       </div>
     </div>
     <div class="card" style="padding:16px 18px;margin-bottom:18px;border:1px solid #e2e8f0;background:#fff">
@@ -8402,18 +8440,20 @@ function renderPersonComparison(mc){
   const bossMonth=(state.bossPayments.entries||[]).filter(r=>dateToMonthKey(r.date)===mk);
   const saqibBoss=bossMonth.filter(r=>(r.givenBy||'SAQIB')==='SAQIB').reduce((s,r)=>s+(Number(r.amount)||0),0);
   const ahmedBoss=bossMonth.filter(r=>r.givenBy==='AHMED').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const foodMonth=(state.foodExpense.entries||[]).filter(r=>dateToMonthKey(r.date)===mk);
-  const saqibFood=foodMonth.filter(r=>r.person==='SAQIB').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const ahmedFood=foodMonth.filter(r=>r.person==='AHMED').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const barafTotal=(state.baraf.entries||[]).filter(r=>dateToMonthKey(r.date)===mk).reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const chayMonth=(state.chay.entries||[]).filter(r=>dateToMonthKey(r.date)===mk);
-  const saqibChay=chayMonth.filter(r=>(r.person||'SAQIB JAVED')==='SAQIB JAVED').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const ahmedChay=chayMonth.filter(r=>r.person==='AHMED').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const officeMonth=(state.officeExpense.entries||[]).filter(r=>(r.month||dateToMonthKey(r.date))===mk);
-  const saqibOffice=officeMonth.filter(r=>(r.person||'SAQIB')==='SAQIB').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const ahmedOffice=officeMonth.filter(r=>r.person==='AHMED').reduce((s,r)=>s+(Number(r.amount)||0),0);
-  const saqibDiff=saqibTotal-saqibBoss-saqibFood-barafTotal-saqibChay-saqibOffice;
-  const ahmedDiff=ahmedTotal-ahmedBoss-ahmedFood-ahmedChay-ahmedOffice;
+  // Per-user breakdown (same calculation as Professional Report cards)
+  const uS=userMonthBreakdown(mk,'SAQIB');
+  const uA=userMonthBreakdown(mk,'AHMED');
+  const barafTotal=uS.ice;
+  const saqibFood=uS.food;
+  const ahmedFood=uA.food;
+  const saqibChay=uS.chay;
+  const ahmedChay=uA.chay;
+  const saqibOffice=uS.office;
+  const ahmedOffice=uA.office;
+  const saqibAdvExp=uS.advance;
+  const ahmedAdvExp=uA.advance;
+  const saqibDiff=saqibTotal-saqibBoss-saqibFood-barafTotal-saqibChay-saqibOffice-saqibAdvExp;
+  const ahmedDiff=ahmedTotal-ahmedBoss-ahmedFood-ahmedChay-ahmedOffice-ahmedAdvExp;
   const saqibAdv=getEmployeeBalance('SAQIB');
   const ahmedAdv=getEmployeeBalance('AHMED');
   const winner=saqibTotal>ahmedTotal?'SAQIB':ahmedTotal>saqibTotal?'AHMED':'TIE';
@@ -8479,8 +8519,9 @@ function renderPersonComparison(mc){
               <span style="font-size:11px;background:#eff6ff;padding:2px 8px;border-radius:6px">Baraf: ${fmt(barafTotal)}</span>
               <span style="font-size:11px;background:#fefce8;padding:2px 8px;border-radius:6px">Chay: ${fmt(saqibChay)}</span>
               <span style="font-size:11px;background:#f5f3ff;padding:2px 8px;border-radius:6px">Office: ${fmt(saqibOffice)}</span>
+              <span style="font-size:11px;background:#fdf2f8;padding:2px 8px;border-radius:6px">Advance: ${fmt(saqibAdvExp)}</span>
             </div>
-            <div style="text-align:right;font-size:12px;font-weight:700;color:#991b1b;margin-top:4px">Total: ${fmt(saqibFood+barafTotal+saqibChay+saqibOffice)}</div>
+            <div style="text-align:right;font-size:12px;font-weight:700;color:#991b1b;margin-top:4px">Total: ${fmt(saqibFood+barafTotal+saqibChay+saqibOffice+saqibAdvExp)}</div>
           </div>
           ${balRow('SAQIB',saqibDiff,'#059669','#dc2626')}
           ${advRow('SAQIB',saqibAdv)}
@@ -8515,8 +8556,9 @@ function renderPersonComparison(mc){
               <span style="font-size:11px;background:#fef2f2;padding:2px 8px;border-radius:6px">Food: ${fmt(ahmedFood)}</span>
               <span style="font-size:11px;background:#fefce8;padding:2px 8px;border-radius:6px">Chay: ${fmt(ahmedChay)}</span>
               <span style="font-size:11px;background:#f5f3ff;padding:2px 8px;border-radius:6px">Office: ${fmt(ahmedOffice)}</span>
+              <span style="font-size:11px;background:#fdf2f8;padding:2px 8px;border-radius:6px">Advance: ${fmt(ahmedAdvExp)}</span>
             </div>
-            <div style="text-align:right;font-size:12px;font-weight:700;color:#991b1b;margin-top:4px">Total: ${fmt(ahmedFood+ahmedChay+ahmedOffice)}</div>
+            <div style="text-align:right;font-size:12px;font-weight:700;color:#991b1b;margin-top:4px">Total: ${fmt(ahmedFood+ahmedChay+ahmedOffice+ahmedAdvExp)}</div>
           </div>
           ${balRow('AHMED',ahmedDiff,'#2563eb','#dc2626')}
           ${advRow('AHMED',ahmedAdv)}
