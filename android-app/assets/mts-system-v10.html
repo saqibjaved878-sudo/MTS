@@ -2594,6 +2594,25 @@ function fmtDate(d){
   const yr=dt.getFullYear();
   return `${day}-${mon}-${yr}`;
 }
+const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function dayNameOf(dateStr){
+  const p=String(dateStr||'').trim().split('-');
+  if(p.length===3&&p.every(x=>/^\d+$/.test(x))){
+    const d=parseInt(p[0],10),m=parseInt(p[1],10),y=parseInt(p[2],10);
+    const dt=new Date(y,m-1,d);
+    if(dt.getFullYear()===y&&dt.getMonth()===m-1&&dt.getDate()===d) return DAY_NAMES[dt.getDay()];
+  }
+  return '';
+}
+document.addEventListener('input',function(e){
+  const t=e.target;
+  if(!t||t.tagName!=='INPUT'||t.type!=='text') return;
+  const td=t.closest('td');
+  const cell=td&&td.nextElementSibling;
+  if(!cell||!cell.hasAttribute('data-day-cell')) return;
+  const v=String(t.value||'').trim();
+  cell.textContent=v?(dayNameOf(v)||'-'):'-';
+});
 function todayStr(){return fmtDate(new Date())}
 function selectedMonthDate(){
   // Selected month ke andar ki date do — warna doosre month me add ki entry us month me dikhegi hi nahi
@@ -3847,7 +3866,7 @@ function renderCustomerMaintenance(mc){
         <table>
           <thead><tr>
             <th>#<br>سیریل</th><th>Customer Name<br>گاہک کا نام</th><th>Mobile<br>موبائل</th><th>City/Area<br>شہر/علاقہ</th><th>Shop Name<br>دوکان</th>
-            <th>Monthly Charges<br>ماہانہ چارجز</th><th>Received Amount<br>وصول شدہ رقم</th><th>Status<br>حالت</th><th>Collected By<br>کس نے وصول کیا</th><th>Block<br>بند</th><th>Payment Date<br>ادائیگی کی تاریخ</th><th>Actions<br>کارروائی</th>
+            <th>Monthly Charges<br>ماہانہ چارجز</th><th>Received Amount<br>وصول شدہ رقم</th><th>Status<br>حالت</th><th>Collected By<br>کس نے وصول کیا</th><th>Block<br>بند</th><th>Payment Date<br>ادائیگی کی تاریخ</th><th>Day<br>دن</th><th>Actions<br>کارروائی</th>
           </tr></thead>
           <tbody id="registryBody">
             ${reg.length ? reg.map((c,i)=>{
@@ -3860,6 +3879,7 @@ function renderCustomerMaintenance(mc){
                 ?{bg:'#f1f5f9',txt:'#475569',label:'🚫 Blocked',badge:'badge-gray'}
                 :getStatusColor(status,mDay);
               const payDate=isPaid?(info.date||'-'):'-';
+              const payDay=payDate!=='-'?dayNameOf(payDate):'-';
               const personKey=isPaid&&info.collector?info.collector:'';
               const personBadge=personKey==='AHMED'
                 ?'<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:11px">👤 AHMED</span>'
@@ -3888,6 +3908,7 @@ function renderCustomerMaintenance(mc){
                 <td>${personBadge}</td>
                 <td>${blockBtn}</td>
                 <td>${payDate}</td>
+                <td>${payDay}</td>
                 <td>
                   ${closed ? `
                     <span class="badge badge-green" style="font-size:12px;padding:4px 12px">🔒 Locked</span>
@@ -3912,7 +3933,7 @@ function renderCustomerMaintenance(mc){
             <td colspan="5" style="text-align:right;padding:10px 12px">TOTAL (all customers)</td>
             <td style="text-align:right;padding:10px 12px;color:var(--green)">Rs ${expectedTotal.toLocaleString('en-PK')}</td>
             <td style="text-align:right;padding:10px 12px;color:#059669">Rs ${totalCollected.toLocaleString('en-PK')}</td>
-            <td colspan="5"></td>
+            <td colspan="6"></td>
           </tr></tfoot>`:''}
         </table>
       </div>
@@ -4589,7 +4610,7 @@ function viewCustHistory(idx){
   const allMks=Object.keys(state.customerPayments||{}).sort();
   let rowsHtml='';
   if(!allMks.length){
-    rowsHtml='<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">Abhi koi payment history nahi hai</td></tr>';
+    rowsHtml='<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">Abhi koi payment history nahi hai</td></tr>';
   }else{
     allMks.forEach(mk=>{
       const info=getCustPaidInfo(idx,mk);
@@ -4607,6 +4628,7 @@ function viewCustHistory(idx){
         <td>${isPaid?'Rs '+paidAmt.toLocaleString('en-PK'):'-'}</td>
         <td>${personCell}</td>
         <td>${isPaid?(info.date||'-'):'-'}</td>
+        <td>${isPaid&&info.date?dayNameOf(info.date):'-'}</td>
         <td>${statusColor}</td>
       </tr>`;
     });
@@ -4625,7 +4647,7 @@ function viewCustHistory(idx){
     </div>
     <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
       <table style="font-size:12px">
-        <thead><tr><th>Month | مہینہ</th><th>Charges | چارجز</th><th>Paid Amount | ادا شدہ</th><th>Collected By | کس نے وصول</th><th>Payment Date | تاریخ</th><th>Status | حالت</th></tr></thead>
+        <thead><tr><th>Month | مہینہ</th><th>Charges | چارجز</th><th>Paid Amount | ادا شدہ</th><th>Collected By | کس نے وصول</th><th>Payment Date | تاریخ</th><th>Day | دن</th><th>Status | حالت</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
     </div>
@@ -4857,7 +4879,7 @@ function renderCustomerSection(label,data,key,mk){
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Sr#<br>سیریل</th><th>Date<br>تاریخ</th><th>City<br>شہر</th><th>Area<br>علاقہ</th>
+          <th>Sr#<br>سیریل</th><th>Date<br>تاریخ</th><th>Day<br>دن</th><th>City<br>شہر</th><th>Area<br>علاقہ</th>
           <th>Customer Name<br>گاہک کا نام</th><th>Amount (Rs)<br>رقم</th><th>Payment Mode<br>ادائیگی کا طریقہ</th><th>Running Total<br>چلتا بیلنس</th><th></th>
         </tr></thead>
         <tbody id="custBody_${key}">
@@ -4877,6 +4899,7 @@ function renderCustomerSection(label,data,key,mk){
               <td>${i+1}${pendingBadge}${pendingAmtTag}</td>
               <td><input type="text" class="free-text-input" style="width:100px;${rs}" value="${r.date||todayStr()}" ${ro}
                 ${!ro?`onchange="updateCustField('${key}',${i},'date',this.value)" oninput="updateCustField('${key}',${i},'date',this.value)"`:''} ></td>
+              <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
               <td><select style="width:120px;${rs}" ${dis}
                 ${!dis?`onchange="updateCustField('${key}',${i},'city',this.value);renderCustomersPage()"`:''} >
                 ${cityOptionsHtml(r.city||'Islamabad')}</select></td>
@@ -4899,7 +4922,7 @@ function renderCustomerSection(label,data,key,mk){
             </tr>`;
           }).join('')}
         </tbody>
-        <tfoot><tr style="font-weight:700;background:#f1f5f9"><td colspan="5">Total | کل</td><td>${fmt(total)}</td><td></td><td>${fmt(running)}</td><td></td></tr></tfoot>
+        <tfoot><tr style="font-weight:700;background:#f1f5f9"><td colspan="6">Total | کل</td><td>${fmt(total)}</td><td></td><td>${fmt(running)}</td><td></td></tr></tfoot>
       </table>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
@@ -5188,9 +5211,9 @@ function filterCustomerRows(q){
     const tbody=document.getElementById('custBody_'+key);
     if(!tbody) return;
     Array.from(tbody.rows).forEach(tr=>{
-      const name=(tr.cells[4]?.querySelector('input')?.value||'').toLowerCase();
-      const area=(tr.cells[3]?.querySelector('input')?.value||'').toLowerCase();
-      const city=(tr.cells[2]?.querySelector('select')?.value||'').toLowerCase();
+      const name=(tr.cells[5]?.querySelector('input')?.value||'').toLowerCase();
+      const area=(tr.cells[4]?.querySelector('input')?.value||'').toLowerCase();
+      const city=(tr.cells[3]?.querySelector('select')?.value||'').toLowerCase();
       const txt=name+' '+area+' '+city;
       tr.style.display=(!q||txt.includes(ql))?'':'none';
     });
@@ -5836,10 +5859,11 @@ function renderBossTab(method){
     </div>
     <div style="margin-bottom:12px"><button class="btn btn-green" onclick="addBossRow('${method}')"><i class="ti ti-plus"></i> Add ${method} Entry</button></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Sr#</th><th>Date</th><th>Given By | کس نے دیا</th><th>Amount (Rs)</th><th>Method</th><th>Remarks</th><th>📷 Photo</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Sr#</th><th>Date</th><th>Day</th><th>Given By | کس نے دیا</th><th>Amount (Rs)</th><th>Method</th><th>Remarks</th><th>📷 Photo</th><th>Actions</th></tr></thead>
       <tbody>${fRows.map((r,i)=>{const ai=fIdx[i];const gb=r.givenBy||'SAQIB';const rowColor=gb==='AHMED'?'background:#eff6ff':'';return`<tr style="${rowColor}">
         <td>${i+1}</td>
         <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateBossField(${ai},'date',this.value)" oninput="updateBossField(${ai},'date',this.value)"></td>
+        <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
         <td>
           <select style="width:110px;font-weight:600;${gb==='AHMED'?'color:var(--blue)':'color:var(--green)'}" onchange="updateBossField(${ai},'givenBy',this.value);renderBossPage()">
             <option value="SAQIB"${gb==='SAQIB'?' selected':''}>👑 SAQIB</option>
@@ -6540,9 +6564,9 @@ function renderSoftware(mc){
     <div class="search-bar"><input type="text" id="swSearch" placeholder="🔍 Search customer name... | گاہک کا نام تلاش کریں" oninput="highlightSoftwareRows(this.value)"><button class="btn btn-blue" onclick="document.getElementById('swSearch').value='';highlightSoftwareRows('')">Clear</button></div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Sr#</th><th>Date</th><th>Customer Name</th><th>Area</th><th>Software Type</th><th>Total (Rs)</th>
+        <th>Sr#</th><th>Date</th><th>Day</th><th>Customer Name</th><th>Area</th><th>Software Type</th><th>Total (Rs)</th>
         <th>Advance</th><th>Adv Method</th><th>Adv By</th><th>Remaining</th><th>Rem Received</th><th>Rem Method</th><th>Rem By</th>
-        <th>Collection Date</th><th>Days Pend.</th><th>Status</th><th>Notes</th><th></th>
+        <th>Collection Date</th><th>Coll. Day</th><th>Days Pend.</th><th>Status</th><th>Notes</th><th></th>
       </tr></thead>
       <tbody>${entries.map((o,si)=>{
         const e=o.e;const i=o.i;
@@ -6556,6 +6580,7 @@ function renderSoftware(mc){
         return`<tr class="${rc}" data-sw-name="${(e.customerName||'').toLowerCase()}">
           <td>${si+1}</td>
           <td><input type="text" style="width:90px" value="${e.date||todayStr()}" onchange="updateSW(${i},'date',this.value)" oninput="updateSW(${i},'date',this.value)"></td>
+          <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(e.date||todayStr())||'-'}</td>
           <td><input type="text" class="free-text-input" style="min-width:120px" value="${e.customerName||''}" onchange="updateSW(${i},'customerName',this.value)" oninput="updateSW(${i},'customerName',this.value)"></td>
           <td><input type="text" class="free-text-input" style="min-width:100px" value="${e.area||''}" onchange="updateSW(${i},'area',this.value)" oninput="updateSW(${i},'area',this.value)"></td>
           <td><input type="text" class="free-text-input" style="min-width:120px" list="swTypes" value="${e.softwareType||''}" onchange="updateSW(${i},'softwareType',this.value)" oninput="updateSW(${i},'softwareType',this.value)"></td>
@@ -6568,6 +6593,7 @@ function renderSoftware(mc){
           <td><select style="width:100px" onchange="updateSW(${i},'remainingMethod',this.value)">${PAY_METHODS.map(m=>`<option value="${m}"${e.remainingMethod===m?' selected':''}>${m}</option>`).join('')}</select></td>
           <td><select style="width:90px" onchange="updateSW(${i},'remainingBy',this.value)">${PERSONS.map(p=>`<option value="${p}"${e.remainingBy===p?' selected':''}>${p}</option>`).join('')}</select></td>
           <td><input type="text" style="width:90px" value="${e.collectionDate||''}" onchange="updateSW(${i},'collectionDate',this.value)" oninput="updateSW(${i},'collectionDate',this.value)"></td>
+          <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${e.collectionDate?dayNameOf(e.collectionDate)||'-':'-'}</td>
           <td>${rem>0?dp:'-'}</td>
           <td><span class="badge ${st.cls}">${st.text}</span></td>
           <td><input type="text" style="min-width:80px" value="${e.notes||''}" onchange="updateSW(${i},'notes',this.value)" oninput="updateSW(${i},'notes',this.value)"></td>
@@ -6624,9 +6650,9 @@ function renderHardware(mc){
     <div class="search-bar"><input type="text" id="hwSearch" placeholder="🔍 Search customer name... | گاہک کا نام تلاش کریں" oninput="highlightHardwareRows(this.value)"><button class="btn btn-blue" onclick="document.getElementById('hwSearch').value='';highlightHardwareRows('')">Clear</button></div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Sr#</th><th>Date</th><th>Customer Name</th><th>Area</th><th>Item Description</th><th>Qty</th>
+        <th>Sr#</th><th>Date</th><th>Day</th><th>Customer Name</th><th>Area</th><th>Item Description</th><th>Qty</th>
         <th>Total Value</th><th>Received</th><th>Discount</th><th>Person</th><th>Payment Method</th>
-        <th>Expected Pay Date</th><th>Balance</th><th>Notes</th><th>Days</th><th>Status</th><th></th>
+        <th>Expected Pay Date</th><th>Exp. Day</th><th>Balance</th><th>Notes</th><th>Days</th><th>Status</th><th></th>
       </tr></thead>
       <tbody>${entries.map((o,si)=>{
         const e=o.e;const i=o.i;
@@ -6640,6 +6666,7 @@ function renderHardware(mc){
         return`<tr class="${rc}" data-hw-name="${(e.customerName||'').toLowerCase()}">
           <td>${si+1}</td>
           <td><input type="text" style="width:90px" value="${e.date||todayStr()}" onchange="updateHW(${i},'date',this.value)" oninput="updateHW(${i},'date',this.value)"></td>
+          <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(e.date||todayStr())||'-'}</td>
           <td><input type="text" class="free-text-input" style="min-width:120px" value="${e.customerName||''}" onchange="updateHW(${i},'customerName',this.value)" oninput="updateHW(${i},'customerName',this.value)"></td>
           <td><input type="text" class="free-text-input" style="min-width:100px" value="${e.area||''}" onchange="updateHW(${i},'area',this.value)" oninput="updateHW(${i},'area',this.value)"></td>
           <td><input type="text" class="free-text-input" style="min-width:140px" value="${e.itemDescription||''}" onchange="updateHW(${i},'itemDescription',this.value)" oninput="updateHW(${i},'itemDescription',this.value)"></td>
@@ -6658,6 +6685,7 @@ function renderHardware(mc){
               <button onclick="setHWExpDate(${i},'2w')" style="padding:2px 5px;font-size:10px;border:1px solid #e5e7eb;border-radius:4px;cursor:pointer;background:#fef9c3;color:#854d0e">+2 Wk</button>
             </div>
           </td>
+          <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${e.expectedPayDate?dayNameOf(e.expectedPayDate)||'-':'-'}</td>
           <td style="font-weight:600;color:${bal>0?'var(--red)':'var(--green)'}">${fmt(bal)}</td>
           <td><input type="text" style="min-width:80px" value="${e.notes||''}" onchange="updateHW(${i},'notes',this.value)" oninput="updateHW(${i},'notes',this.value)"></td>
           <td>${bal>0?dp:'-'}</td>
@@ -6704,10 +6732,11 @@ function renderFood(mc){
     <div class="page-header"><div><h1>Food Expense</h1><span class="urdu-title">کھانے کے اخراجات</span></div><div><button class="btn btn-green" onclick="manualSave()"><i class="ti ti-device-floppy"></i> Save</button><button id="updateBtn" class="btn" onclick="commitUpdate()" style="background:linear-gradient(135deg,#1eb37b,#159b67);color:#fff;display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"><i class="ti ti-refresh"></i> Update</button><button class="btn btn-blue" onclick="exportToExcel('food')"><i class="ti ti-file-spreadsheet"></i> Export Excel</button><button class="btn btn-green" onclick="addFoodRow()"><i class="ti ti-plus"></i> Add Entry</button><button class="btn btn-red" style="margin-left:8px" onclick="clearFood()"><i class="ti ti-trash"></i> Clear All</button></div></div>
     <div class="summary-cards"><div class="summary-card"><div class="label">Total Food (${mk})</div><div class="value" style="color:var(--orange)" id="liveTotal">${fmt(total)}</div><div class="urdu-label">کل کھانا</div></div></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Sr#</th><th>Date</th><th>Person</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
+      <thead><tr><th>Sr#</th><th>Date</th><th>Day</th><th>Person</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
       <tbody>${all.map((o,si)=>{const r=o.r;const i=o.i;return`<tr>
         <td>${si+1}</td>
         <td><input type="text" id="food-date-${i}" style="width:100px" value="${r.date||todayStr()}" onchange="updateFoodField(${i},'date',this.value)" oninput="updateFoodField(${i},'date',this.value)" onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();const a=document.getElementById('food-amount-${i}');if(a){a.focus();}}"></td>
+        <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
         <td><select onchange="updateFoodField(${i},'person',this.value)">${PERSONS.map(p=>`<option value="${p}"${r.person===p?' selected':''}>${p}</option>`).join('')}</select></td>
         <td><input type="number" id="food-amount-${i}" style="width:120px" value="${r.amount||''}" placeholder="رقم" onchange="updateFoodField(${i},'amount',this.value)" oninput="updateFoodField(${i},'amount',this.value)" onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();const n=document.getElementById('food-notes-${i}');if(n){n.focus();}}"></td>
         <td><input type="text" id="food-notes-${i}" value="${r.notes||''}" placeholder="notes likho, Enter dabao → next row" onchange="updateFoodField(${i},'notes',this.value)" oninput="updateFoodField(${i},'notes',this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();foodAddNextRow(${i});}"></td>
@@ -6770,7 +6799,7 @@ function renderBaraf(mc){
     <div class="summary-cards"><div class="summary-card"><div class="label">Total Ice (${mk})</div><div class="value" style="color:var(--blue)" id="liveTotal">${fmt(total)}</div><div class="urdu-label">کل برف</div></div></div>
     <div style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px"><span>🔒</span> Row se bahar jate hi entry <b>lock</b> — badalne/delete karne ke liye <b>🔓 Edit → Admin PIN</b>.</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Sr#</th><th>Date</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
+      <thead><tr><th>Sr#</th><th>Date</th><th>Day</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
       <tbody>${all.map((o,si)=>barafRowHTML(o.r,o.i,si)).join('')}</tbody>
     </table></div>
     ${!all.length?'<div class="empty-state"><i class="ti ti-snowflake-off"></i>Abhi koi entry nahi | No entries yet</div>':''}
@@ -6822,6 +6851,7 @@ function barafRowHTML(r,i,si){
     return `<tr id="baraf-row-${i}" style="background:#f8fafc">
       <td>${si+1} <span title="🔒 Locked — edit ke liye Admin PIN" style="cursor:help">🔒</span></td>
       <td style="padding:9px 6px;color:#334155;font-weight:600;white-space:nowrap">${escHtml(r.date||'-')}</td>
+      <td data-day-cell="1" style="padding:9px 6px;color:#475569;font-weight:600;white-space:nowrap">${r.date?dayNameOf(r.date)||'-':'-'}</td>
       <td style="padding:9px 6px;color:#0f172a;font-weight:800">${(Number(r.amount)||0).toLocaleString('en-PK')}</td>
       <td style="padding:9px 6px;color:#475569">${escHtml(r.notes||'-')}</td>
       <td style="text-align:center"><button onclick="requestBarafUnlock(${i})" title="🔒 Locked — Admin PIN se edit/delete" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer">🔓 Edit</button></td>
@@ -6830,6 +6860,7 @@ function barafRowHTML(r,i,si){
   return `<tr id="baraf-row-${i}">
     <td>${si+1}</td>
     <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateBarafField(${i},'date',this.value)" oninput="updateBarafField(${i},'date',this.value)" onblur="barafRowBlur(${i},event)"></td>
+    <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
     <td><input type="number" style="width:120px" value="${r.amount||''}" onchange="updateBarafField(${i},'amount',this.value)" oninput="updateBarafField(${i},'amount',this.value)" onblur="barafRowBlur(${i},event)"></td>
     <td><input type="text" value="${r.notes||''}" onchange="updateBarafField(${i},'notes',this.value)" oninput="updateBarafField(${i},'notes',this.value)" onblur="barafRowBlur(${i},event)"></td>
     <td><button class="btn-icon" onclick="deleteBarafRow(${i})"><i class="ti ti-trash"></i></button></td>
@@ -6891,10 +6922,11 @@ function renderChay(mc){
       <div class="summary-card"><div class="label">SAQIB JAVED</div><div class="value" style="color:var(--green)">${fmt(saqibTotal)}</div><div class="urdu-label">ثاقب جاوید</div></div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Sr#</th><th>Date</th><th>Person | شخص</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
+      <thead><tr><th>Sr#</th><th>Date</th><th>Day</th><th>Person | شخص</th><th>Amount (Rs)</th><th>Notes</th><th></th></tr></thead>
       <tbody>${all.map((o,si)=>{const r=o.r;const i=o.i;return`<tr>
         <td>${si+1}</td>
         <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateChayField(${i},'date',this.value)" oninput="updateChayField(${i},'date',this.value)"></td>
+        <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
         <td><select style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px" onchange="updateChayField(${i},'person',this.value)">
           <option value="AFTAB AHMED" ${(r.person||'AFTAB AHMED')==='AFTAB AHMED'?'selected':''}>AFTAB AHMED</option>
           <option value="SAQIB JAVED" ${r.person==='SAQIB JAVED'?'selected':''}>SAQIB JAVED</option>
@@ -7064,13 +7096,14 @@ function renderEmployeeAdvance(mc){
           <div><span style="font-size:11px;color:#64748b">Monthly Recovery</span><div style="font-size:12px;font-weight:600">${monthlyRecoveryHtml}</div></div>
         </div>
         ${!eRows.length?'<div class="empty-state"><i class="ti ti-wallet-off"></i>No entries yet</div>':`<div class="table-wrap"><table>
-          <thead><tr><th>Sr#</th><th>Date | تاریخ</th><th>Type</th><th>Amount (Rs)</th><th>Liya Kis Sy | Taken From</th><th>Remarks | ریمارکس</th><th>Running Balance</th><th></th></tr></thead>
+          <thead><tr><th>Sr#</th><th>Date | تاریخ</th><th>Day | دن</th><th>Type</th><th>Amount (Rs)</th><th>Liya Kis Sy | Taken From</th><th>Remarks | ریمارکس</th><th>Running Balance</th><th></th></tr></thead>
           <tbody>${eRows.map((r,i)=>{const ai=eIdx[i];const isRet=(r.type||'add')==='return';const isBossRet=r.entryType==='boss_return';
             const advVal=isBossRet?-(Number(r.amount)||0):isRet?(Number(r.amount)||0):(Number(r.advance)||0);
             const advColor=advVal>0?'var(--red)':'var(--green)';
             return`<tr${isBossRet?' style="background:#fee2e2"':isRet?' style="background:#fff7ed"':''}>
             <td>${i+1}</td>
             <td><input type="text" style="width:90px" value="${r.date||todayStr()}" onchange="updateAdvField(${ai},'date',this.value)"></td>
+            <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
             <td style="font-size:11px">${isBossRet?'<span class="badge badge-red">BOSS WAPASI</span>':isRet?'<span class="badge badge-orange">RETURN</span>':'<span class="badge badge-green">ADVANCE</span>'}</td>
             <td style="font-weight:700;color:${advColor}">${isBossRet?fmt(Number(r.amount)||0):isRet?fmt(Number(r.amount)||0):`<input type="number" style="width:100px" value="${r.advance||''}" onchange="updateAdvField(${ai},'advance',this.value)">`}</td>
             <td>${isBossRet?'-':`<select style="width:110px" onchange="updateAdvField(${ai},'takenFrom',this.value)">${ADV_TAKEN_FROM.map(f=>`<option value="${f}"${(r.takenFrom||'SAQIB')===f?' selected':''}>${f}</option>`).join('')}</select>`}</td>
@@ -7139,6 +7172,7 @@ function showAdvHistoryModal(emp){
     return `<tr${r.entryType==='boss_return'?' style="background:#fee2e2"':isRet?' style="background:#fff7ed"':''}>
       <td>${i+1}</td>
       <td>${r.date||'-'}</td>
+      <td>${r.date?dayNameOf(r.date)||'-':'-'}</td>
       <td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:${isRet?'#fef3c7':'#dcfce7'};color:${isRet?'#92400e':'#166534'}">${type}</span></td>
       <td style="font-weight:600;color:${isRet?'var(--green)':'var(--red)'}">${amt}</td>
       <td>${r.takenFrom||'SAQIB'}</td>
@@ -7168,8 +7202,8 @@ function showAdvHistoryModal(emp){
       </div>
     </div>
     <div style="max-height:400px;overflow-y:auto"><table style="width:100%;font-size:13px">
-      <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Amount</th><th>Taken From</th><th>Balance</th><th>Remarks</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">No entries</td></tr>'}</tbody>
+      <thead><tr><th>#</th><th>Date</th><th>Day</th><th>Type</th><th>Amount</th><th>Taken From</th><th>Balance</th><th>Remarks</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="8" style="text-align:center;padding:24px;color:#94a3b8">No entries</td></tr>'}</tbody>
     </table></div>`,
     'Close',()=>{},true);
 }
@@ -7210,10 +7244,11 @@ function renderOfficeExpense(mc){
       <div class="summary-card"><div class="label" style="color:var(--blue)">Ahmed</div><div class="value" style="color:var(--blue)">${fmt(ahmedOffice)}</div><div class="urdu-label">Closing میں cut ✅</div></div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Sr#</th><th>Date</th><th>Person</th><th>Description</th><th>Amount (Rs)</th><th>Month</th><th>Notes</th><th></th></tr></thead>
+      <thead><tr><th>Sr#</th><th>Date</th><th>Day</th><th>Person</th><th>Description</th><th>Amount (Rs)</th><th>Month</th><th>Notes</th><th></th></tr></thead>
       <tbody>${rowsWithIdx.map((r,i)=>`<tr>
         <td>${i+1}</td>
         <td><input type="text" style="width:100px" value="${r.date||todayStr()}" onchange="updateOfficeField(${r._oi},'date',this.value)" oninput="updateOfficeField(${r._oi},'date',this.value)"></td>
+        <td data-day-cell="1" style="font-weight:600;color:#475569;white-space:nowrap">${dayNameOf(r.date||todayStr())||'-'}</td>
         <td><select onchange="updateOfficeField(${r._oi},'person',this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-weight:700;color:${(r.person||'SAQIB')==='SAQIB'?'var(--green)':(r.person||'')==='AHMED'?'var(--blue)':'#94a3b8'}">${PERSONS.map(p=>`<option value="${p}"${(r.person||'SAQIB')===p?' selected':''}>${p}</option>`).join('')}</select></td>
         <td><input type="text" style="min-width:120px" value="${r.description||''}" onchange="updateOfficeField(${r._oi},'description',this.value)" oninput="updateOfficeField(${r._oi},'description',this.value)"></td>
         <td><input type="number" style="width:120px" value="${r.amount||''}" onchange="updateOfficeField(${r._oi},'amount',this.value)" oninput="updateOfficeField(${r._oi},'amount',this.value)"></td>
